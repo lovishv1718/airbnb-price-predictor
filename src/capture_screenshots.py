@@ -3,6 +3,7 @@
 Usage: start the app (python app.py), then run
     python capture_screenshots.py [base_url]
 """
+import json
 import sys
 
 from playwright.sync_api import sync_playwright
@@ -17,6 +18,41 @@ def shot(page, name, full=False):
     page.wait_for_timeout(1500)
     page.screenshot(path=str(OUT / f"{name}.png"), full_page=full)
     print("  saved", name)
+
+
+# Route Planner demo: the Paris listing closest to each landmark (fixed, so the report is reproducible)
+LANDMARKS = [("Eiffel Tower", 48.8584, 2.2945), ("Arc de Triomphe", 48.8738, 2.2950), ("Sacré-Cœur", 48.8867, 2.3431),
+             ("Gare du Nord", 48.8809, 2.3553), ("République", 48.8673, 2.3637), ("Bastille", 48.8532, 2.3692),
+             ("Notre-Dame", 48.8530, 2.3499), ("Louvre", 48.8606, 2.3376), ("Montparnasse", 48.8421, 2.3219)]
+
+
+def capture_route(page):
+    page.goto(f"{BASE}/route?city=Paris", wait_until="networkidle")
+    page.wait_for_function("rows.length > 0")
+    page.evaluate("""(marks) => {
+        stops = marks.map(([, la, lo]) => {
+            let best = -1, bd = Infinity;
+            rows.forEach((r, i) => { const d = (r[0] - la) ** 2 + ((r[1] - lo) * 0.66) ** 2;
+                                     if (d < bd && !stops.includes(i)) { bd = d; best = i; } });
+            return best; });
+        start = 0; render(); fitStops();
+    }""", LANDMARKS)
+    page.select_option("#target", "5")  # Eiffel Tower -> Bastille
+    page.click("#go")
+    page.wait_for_selector(".algo")
+    page.evaluate("window.scrollTo(0, 0)")
+    shot(page, "20_route_map")
+    page.uncheck("[data-layer=exact]"); page.uncheck("[data-layer=path]"); page.check("[data-layer=heur]")
+    shot(page, "21_route_map_heuristic")
+    page.check("[data-layer=exact]"); page.check("[data-layer=path]"); page.uncheck("[data-layer=heur]")
+    page.wait_for_timeout(800)
+    page.locator("#results .algo-grid").screenshot(path=str(OUT / "22_route_algorithms.png"))
+    page.locator("#results .g2").screenshot(path=str(OUT / "23_route_tables.png"))
+    print("  saved 22_route_algorithms, 23_route_tables")
+    example = page.evaluate("result")
+    example["landmarks"] = [m[0] for m in LANDMARKS]
+    example["prices"] = page.evaluate("stops.map(i => rows[i][2])")
+    (REPORTS_DIR / "route_example.json").write_text(json.dumps(example, indent=1), encoding="utf-8")
 
 
 def main():
@@ -86,6 +122,8 @@ def main():
 
         page.goto(f"{BASE}/api/health", wait_until="networkidle")
         shot(page, "16_api_health")
+
+        capture_route(page)
 
         mobile = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True)
         mobile.goto(f"{BASE}/", wait_until="networkidle")

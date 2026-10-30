@@ -99,9 +99,9 @@ class ReportDoc(BaseDocTemplate):
 # ------------------------------------------------------------------ helpers
 story = []
 P = lambda t, s="body": story.append(Paragraph(t, S[s]))
-H1 = lambda t: (story.append(CondPageBreak(CONTENT_H * .38)), story.append(Spacer(1, 6)),
+H1 = lambda t: (story.append(CondPageBreak(CONTENT_H * .25)), story.append(Spacer(1, 6)),
                story.append(Paragraph(t, S["h1"])))
-H2 = lambda t: (story.append(CondPageBreak(5.5 * cm)), P(t, "h2"))
+H2 = lambda t, need=5.5 * cm: (story.append(CondPageBreak(need)), P(t, "h2"))
 H3 = lambda t: (story.append(CondPageBreak(4 * cm)), P(t, "h3"))
 
 
@@ -210,7 +210,11 @@ def build():
     bullets(["<b>Main finding:</b> location (centrality, attractions, restaurants, metro access) drives price "
              "most, followed by city, room type and capacity. Host reputation and reviews matter little.",
              "<b>Deliverables:</b> reproducible pipeline, six compared models, the PriceScope web app (dashboard, "
-             "map explorer, price predictor, model page), public deployment on Vercel, and source code on GitHub."])
+             "map explorer, price predictor, route planner, model page), public deployment on Vercel, and source "
+             "code on GitHub.",
+             "<b>Algorithms component:</b> a Route Planner that runs Dijkstra, Bellman-Ford and two Travelling "
+             "Salesman algorithms (Held-Karp exact, nearest neighbour + 2-opt) over chosen listings, all written "
+             "from scratch with tests and an empirical complexity analysis (Chapter 11)."])
 
     # ---------------------------------------------------------------- 2 intro
     H1("2. Introduction")
@@ -255,7 +259,7 @@ def build():
                                  sal=("Monthly_Average_Net_salary", "first"), saf=("Safety_Index", "first"))
     rows = [["City", "Country", "Listings", "Median price", "Net salary", "Safety index"]]
     for c, r in cnt.sort_values("n", ascending=False).iterrows():
-        rows.append([c, DF.loc[DF.city == c, "country_name"].iloc[0], f"{r.n:,}", eur(r.med), eur(r.sal), f"{r.saf:.1f}"])
+        rows.append([c, DF.loc[DF.city == c, "country_name"].iloc[0], f"{int(r.n):,}", eur(r.med), eur(r.sal), f"{r.saf:.1f}"])
     table(rows)
 
     # ---------------------------------------------------------------- 4 cleaning
@@ -316,8 +320,6 @@ def build():
       "R², because prices there vary widely even at similar locations, probably due to building quality and "
       "views, which the data does not record.")
     img(RFIG / "city_Paris.png", "Figure 6.1 - Paris: listing prices on the map and the centre premium by room type.",
-        max_h=CONTENT_H * .27)
-    img(RFIG / "city_London.png", "Figure 6.2 - London: listing prices on the map and the centre premium by room type.",
         max_h=CONTENT_H * .27)
 
     # ---------------------------------------------------------------- 7 method
@@ -399,14 +401,14 @@ def build():
     story.append(PageBreak())
     H1("10. The PriceScope Web Application")
     P("PriceScope is a Flask application with a responsive interface: a sidebar for navigation, card layouts, "
-      "Plotly charts and Leaflet maps with OpenStreetMap tiles. It has five pages and a REST API.")
+      "Plotly charts and Leaflet maps with OpenStreetMap tiles. It has six pages and a REST API. The Route Planner page is covered in Chapter 11.")
     H2("10.1 Market dashboard")
     img(SHOTS / "01_dashboard_top.png", "Screenshot 10.1 - Dashboard: KPI cards, Europe price map and median price by city.",
         max_h=CONTENT_H * .4)
     P("Six KPI cards summarise the market. A map of Europe shows one bubble per city, sized by listings and "
       "coloured by median price, and clicking a bubble opens that city in the explorer. Further down are charts "
       "of room-type premiums, the centre premium, the price distribution and capacity, and a city scorecard.")
-    H2("10.2 Map explorer")
+    H2("10.2 Map explorer", need=CONTENT_H * .45)
     half = (CONTENT_W - .6 * cm) / 2
 
     def pair(files, captions, fig_caption, max_h):
@@ -428,7 +430,7 @@ def build():
       "map and the summary card instantly.")
     img(SHOTS / "06_explorer_london_filtered.png", "Screenshot 10.3 - London filtered to entire homes owned by Superhosts.",
         max_h=CONTENT_H * .38)
-    H2("10.3 Price predictor")
+    H2("10.3 Price predictor", need=CONTENT_H * .8)
     img(SHOTS / "09_predict_paris_full.png", "Screenshot 10.4 - Full prediction for a central Paris apartment.",
         max_h=CONTENT_H * .78)
     P("The user picks a city, clicks or drags the pin to the listing's location and describes it. Metro "
@@ -439,17 +441,159 @@ def build():
     pair(["10_predict_amsterdam_family.png", "11_predict_athens_private.png"],
          ["Amsterdam: 6-guest family home, weekend", "Athens: private room for 2"],
          "Screenshot 10.5 - Two contrasting prediction scenarios.", CONTENT_H * .6)
-    H2("10.4 Model performance and mobile views")
+    H2("10.4 Model performance and mobile views", need=CONTENT_H * .45)
     img(SHOTS / "13_model_top.png", "Screenshot 10.6 - Model Performance page: KPIs, leaderboard and feature importance.",
         max_h=CONTENT_H * .38)
-    mob = [Image(str(SHOTS / f), width=CONTENT_W / 3.6, height=CONTENT_W / 3.6 * 844 / 390)
+    mob = [Image(str(SHOTS / f), width=CONTENT_W / 4.6, height=CONTENT_W / 4.6 * 844 / 390)
            for f in ["17_mobile_dashboard.png", "18_mobile_predict.png", "19_mobile_menu.png"]]
     t = Table([mob, [Paragraph(x, S["caption"]) for x in ["Dashboard", "Prediction result", "Navigation menu"]]])
     t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
     story.append(KeepTogether([t, Paragraph("Screenshot 10.7 - Mobile views (390 × 844).", S["caption"])]))
 
-    # ---------------------------------------------------------------- 11 architecture
-    H1("11. Architecture, API and Deployment")
+    # ---------------------------------------------------------------- 11 route planner (DAA)
+    H1("11. Route Planner: Design and Analysis of Algorithms")
+    P("The Route Planner turns the listings into a graph problem. A traveller picks the Airbnbs they want to "
+      "visit; the app finds the shortest path between two of them and the shortest round trip that visits all "
+      "of them. Every algorithm is implemented from scratch in plain Python in "
+      "<font face='Mono'>src/algorithms.py</font>, using only <font face='Mono'>heapq</font> from the standard "
+      "library, and served through <font face='Mono'>POST /api/route</font>.")
+    H2("11.1 Problem formulation")
+    bullets(["<b>Vertices V:</b> the n selected listings (2 to 20), one of them marked as the start.",
+             "<b>Edges E:</b> each listing is joined to its k nearest listings (k = 1 to 6, default 3). The edge "
+             "weight is the great-circle (haversine) distance in km. The graph is undirected, so |E| ≤ k·n.",
+             "<b>Connectivity:</b> a k-nearest-neighbour graph can split into clusters. Depth-first search finds "
+             "the components, and the closest pair of listings between components is joined until one remains.",
+             "<b>Shortest path:</b> from the start to every listing, solved by Dijkstra and by Bellman-Ford.",
+             "<b>Travelling Salesman (TSP):</b> a minimum-length closed tour from the start through every "
+             "listing. It runs on the all-pairs shortest-path matrix, so each leg of the tour follows a real "
+             "path in the graph."])
+    H2("11.2 Algorithms and complexity")
+    table([["Algorithm", "Technique", "Time", "Space"],
+           ["k-NN graph + DFS", "sort neighbours, then join components", "O(V² log V)", "O(V + E)"],
+           ["Dijkstra", "greedy, binary min-heap, lazy deletion", "O((V + E) log V)", "O(V + E)"],
+           ["Bellman-Ford", "dynamic programming over edge relaxations", "O(V · E)", "O(V)"],
+           ["All-pairs Dijkstra", "Dijkstra from every vertex", "O(V (V + E) log V)", "O(V²)"],
+           ["Held-Karp TSP", "dynamic programming over subsets (bitmasks)", "O(n² · 2ⁿ)", "O(n · 2ⁿ)"],
+           ["Nearest neighbour + 2-opt", "greedy construction + local search", "O(n²) per pass", "O(n)"],
+           ["Brute-force TSP (tests only)", "try every permutation", "O(n!)", "O(n)"]],
+          col_w=[4.2 * cm, 6.4 * cm, 3.3 * cm, CONTENT_W - 13.9 * cm])
+    pseudo = [
+        ("Dijkstra(G, s)",
+         "dist[v] = INF for all v;  dist[s] = 0;  heap = [(0, s)]\n"
+         "while heap not empty:\n"
+         "    (d, u) = pop_min(heap)\n"
+         "    if u settled: continue          # stale entry\n"
+         "    settle u\n"
+         "    for (v, w) in adj[u]:\n"
+         "        if d + w < dist[v]:\n"
+         "            dist[v] = d + w;  prev[v] = u;  push(heap, (dist[v], v))"),
+        ("Bellman-Ford(G, s)",
+         "dist[v] = INF for all v;  dist[s] = 0\n"
+         "repeat V-1 times:\n"
+         "    changed = false\n"
+         "    for each directed edge (u, v, w):\n"
+         "        if dist[u] + w < dist[v]: dist[v] = dist[u] + w;  prev[v] = u;  changed = true\n"
+         "    if not changed: break           # early exit\n"
+         "negative_cycle = any(dist[u] + w < dist[v] for (u, v, w))"),
+        ("Held-Karp(D, start)",
+         "C[{j}][j] = D[start][j]\n"
+         "C[S + {k}][k] = min over j in S of  C[S][j] + D[j][k]     (k not in S, S + {k} = union)\n"
+         "tour length = min over j of  C[all][j] + D[j][start]\n"
+         "the tour is rebuilt from the stored parent of each state"),
+        ("2-opt(tour, D)",
+         "repeat until no improvement:\n"
+         "    for every pair of edges (a,b), (c,d) in the tour:\n"
+         "        if D[a][c] + D[b][d] < D[a][b] + D[c][d]:\n"
+         "            reverse the segment b..c       # removes a crossing"),
+    ]
+    for title, code in pseudo:
+        story.append(KeepTogether([Paragraph(title, S["h3"]), Preformatted(code, S["code"])]))
+    P("Dijkstra is correct only for non-negative weights, which holds for distances. Bellman-Ford is slower "
+      "but also handles negative weights and reports negative cycles; it is included to compare the two "
+      "approaches and as an independent check, since both must return identical distances. The TSP is NP-hard: "
+      f"Held-Karp gives the guaranteed optimum but needs exponential time, so the app uses it up to "
+      f"{12} stops. Nearest neighbour + 2-opt is polynomial and very fast, but it can get stuck in a local "
+      "optimum.")
+
+    H2("11.3 Worked example: nine Paris landmarks")
+    RX = json.loads((REPORTS_DIR / "route_example.json").read_text(encoding="utf-8"))
+    P("The example uses the Paris listing closest to each of nine landmarks, starts at the Eiffel Tower and "
+      f"finds the shortest path to Bastille. With k = {RX['k']}, the graph has {RX['n']} vertices and "
+      f"{RX['graph']['num_edges']} edges.")
+    img(SHOTS / "20_route_map.png", "Screenshot 11.1 - Route Planner: exact TSP tour (red), Dijkstra path to "
+        "Bastille (blue) and numbered stops.", max_h=CONTENT_H * .42)
+    names = RX["landmarks"]
+    rows = [["Stop", "Near", "Price", "Dijkstra km", "Bellman-Ford km", "Shortest path"]]
+    parent = {v: p for p, v in RX["dijkstra"]["tree"]}
+    for i, nm in enumerate(names):
+        path, v = [i], i
+        while v in parent:
+            v = parent[v]; path.insert(0, v)
+        rows.append([i + 1, nm, eur(RX["prices"][i]), f"{RX['dijkstra']['all_distances'][i]:.3f}",
+                     f"{RX['bellman_ford']['all_distances'][i]:.3f}", " → ".join(str(p + 1) for p in path)])
+    table(rows, font=9)
+    d, b, x, h = RX["dijkstra"], RX["bellman_ford"], RX["tsp_exact"], RX["tsp_heuristic"]
+    table([["Algorithm", "Result", "Route", "Work done"],
+           ["Dijkstra", f"{d['distance']:.2f} km to stop {RX['target'] + 1}", " → ".join(str(p + 1) for p in d["path"]),
+            f"{d['relaxations']} relaxations, {d['heap_pushes']} heap pushes"],
+           ["Bellman-Ford", f"{b['distance']:.2f} km to stop {RX['target'] + 1}", " → ".join(str(p + 1) for p in b["path"]),
+            f"{b['passes']} of {b['max_passes']} passes, {b['relaxations']} relaxations, no negative cycle"],
+           ["Held-Karp", f"{x['km']:.2f} km round trip", " → ".join(str(p + 1) for p in x["tour"]),
+            f"{x['subsets']} subsets, {x['states']:,} DP transitions"],
+           ["NN + 2-opt", f"{h['km']:.2f} km round trip", " → ".join(str(p + 1) for p in h["tour"]),
+            f"greedy {h['greedy_km']:.2f} km, then {h['two_opt_swaps']} 2-opt swap(s)"]],
+          col_w=[2.6 * cm, 3.4 * cm, 5.4 * cm, CONTENT_W - 11.4 * cm], font=9)
+    P(f"Both shortest-path algorithms return identical distances to every stop. The shortest route from the "
+      f"Eiffel Tower to Bastille goes through the Louvre listing ({d['distance']:.2f} km), because the two have no "
+      f"direct edge. Bellman-Ford needed only {b['passes']} of its {b['max_passes']} allowed passes. The optimal "
+      f"round trip is {x['km']:.2f} km and follows the landmarks in a ring. The greedy tour alone was "
+      f"{h['greedy_km']:.2f} km ({(h['greedy_km'] / x['km'] - 1) * 100:.0f}% longer); one 2-opt swap removed its "
+      "crossing and reached the optimum.")
+    img(SHOTS / "22_route_algorithms.png", "Screenshot 11.2 - Result cards for the four algorithms, with complexity, "
+        "operation counts and run times.", max_h=CONTENT_H * .4)
+
+    H2("11.4 Empirical analysis", need=CONTENT_H * .4)
+    BM = json.loads((REPORTS_DIR / "algo_benchmark.json").read_text())
+    sp, ts = BM["shortest_path"], BM["tsp"]
+    img(RFIG / "algo_benchmark.png", "Figure 11.1 - Measured run times (log scale) and the 2-opt optimality gap on "
+        "random Paris-sized instances.", max_h=CONTENT_H * .28)
+    rows = [["Stops V", "Edges E", "Dijkstra ms", "Bellman-Ford ms", "Ratio"]]
+    for i, n in enumerate(sp["n"]):
+        rows.append([n, sp["edges"][i], f"{sp['dijkstra'][i]:.3f}", f"{sp['bellman_ford'][i]:.3f}",
+                     f"{sp['bellman_ford'][i] / sp['dijkstra'][i]:.1f}×"])
+    table(rows, font=9)
+    growth = [ts["held_karp"][i + 1] / ts["held_karp"][i] for i in range(len(ts["n"]) - 1) if ts["n"][i] >= 8]
+    P(f"<b>Shortest paths.</b> Dijkstra grows roughly linearly here, because E ≈ 2V in a k = 3 graph. "
+      f"Bellman-Ford is {sp['bellman_ford'][-1] / sp['dijkstra'][-1]:.0f}× slower at {sp['n'][-1]} stops. Thanks "
+      "to the early exit it needs far fewer than V − 1 passes on these geometric graphs, so it stays well below "
+      "its O(V·E) worst case, but it still re-scans every edge on each pass.")
+    rows = [["Stops n"] + [str(n) for n in ts["n"]],
+            ["Held-Karp ms"] + [f"{v:.2f}" for v in ts["held_karp"]],
+            ["NN + 2-opt ms"] + [f"{v:.2f}" for v in ts["heuristic"]],
+            ["Mean gap %"] + [f"{v:.2f}" for v in ts["gap_mean"]],
+            ["Optimal in %"] + [f"{v:.0f}" for v in ts["optimal_pct"]]]
+    table(rows, font=8.5)
+    P(f"<b>Travelling Salesman.</b> Held-Karp's time multiplies by about {sum(growth) / len(growth):.1f}× for each "
+      f"extra stop, close to the factor of about 2 predicted by O(n² · 2ⁿ), and reaches "
+      f"{ts['held_karp'][-1]:.0f} ms at {ts['n'][-1]} stops. At that rate, 20 stops would take minutes, which is "
+      f"why the app switches to the heuristic above 12. Nearest neighbour + 2-opt stays below 0.1 ms. Across 25 "
+      "random instances per size, it found the exact optimum 68-100% of the time, with a mean gap below 2%. "
+      f"Its worst case was {max(ts['gap_max']):.0f}% longer than optimal, which shows why an exact method is "
+      "still worth having when it is affordable.")
+    H2("11.5 Correctness testing")
+    P("<font face='Mono'>tests/test_algorithms.py</font> has 11 unit tests, all passing "
+      "(<font face='Mono'>python -m unittest discover tests</font>):")
+    bullets(["Dijkstra and Bellman-Ford match an independent Floyd-Warshall implementation on 30 random graphs, "
+             "from every source.",
+             "A hand-worked 4-node example where the shortest path (A-C-B-D, length 4) is not the direct edge.",
+             "Bellman-Ford handles negative edges correctly and detects a negative cycle.",
+             "Held-Karp equals the O(n!) brute-force optimum for 3 to 8 stops.",
+             "2-opt never beats the exact optimum, and every tour visits each stop exactly once.",
+             "Expanded tours use only real graph edges; the generated graphs are connected and symmetric.",
+             "The API rejects fewer than 2 or more than 20 stops, out-of-range indices and malformed input."])
+
+    # ---------------------------------------------------------------- 12 architecture
+    H1("12. Architecture, API and Deployment")
     story.append(Preformatted(
         "Cleaned_data.csv\n"
         "  -> src/clean.py        dedupe, fix labels, checks, outlier fence, listing_id\n"
@@ -461,7 +605,9 @@ def build():
            ["GET /api/health", "Service status, serving model and its R²"],
            ["GET /api/listings/&lt;city&gt;", "All listings of a city in compact form (used by the map)"],
            ["POST /api/predict", "Price, interval, drivers, location profile and comparables. Needs city, "
-                                 "latitude and longitude; other fields have defaults"]],
+                                 "latitude and longitude; other fields have defaults"],
+           ["POST /api/route", "Graph, Dijkstra, Bellman-Ford, Held-Karp and 2-opt results for 2-20 points "
+                               "(Chapter 11)"]],
           col_w=[4.4 * cm, CONTENT_W - 4.4 * cm])
     P("<b>Deployment.</b> The source code is on GitHub (lovishv1718/airbnb-price-predictor) and the app runs on "
       "Vercel at <b>https://airbnb-price-predictor-ivory.vercel.app</b>. XGBoost, CatBoost and SHAP together "
@@ -474,21 +620,25 @@ def build():
            ["Lite model against LightGBM", "Maximum difference 0.0"],
            ["All pages and API, locally and on Vercel", "HTTP 200, no console errors"],
            ["Map, filter and prediction interactions (Playwright)", "Working (screenshots in Chapter 10)"],
-           ["Mobile layout (390 px)", "Stacks correctly, menu works"]],
+           ["Mobile layout (390 px)", "Stacks correctly, menu works"],
+           ["Route Planner algorithms (11 unit tests)", "All pass (Section 11.5)"]],
           col_w=[8 * cm, CONTENT_W - 8 * cm])
 
-    # ---------------------------------------------------------------- 12 limits + conclusion
-    H1("12. Limitations and Future Work")
+    # ---------------------------------------------------------------- 13 limits + conclusion
+    H1("13. Limitations and Future Work")
     bullets(["<b>Missing price drivers:</b> photos, floor area, amenities, interior and views are not in the data "
              "and probably explain most of the remaining 14% of variance.",
              "<b>Coarse coordinates:</b> latitude and longitude are rounded to about 1 km, so fine location detail "
              "comes from the distance and index columns.",
              "<b>Snapshot data:</b> there is no seasonality or booking calendar, so prices should be re-validated "
              "before live use.",
-             "<b>Future work:</b> text and photo features, quantile models for listing-specific intervals, Optuna "
+             "<b>Straight-line routes:</b> the Route Planner uses great-circle distances between listings, not "
+             "street-network distances. Real walking or driving distances would need a road graph such as "
+             "OpenStreetMap's.",
+             "<b>Future work:</b> street-network routing for the Route Planner, text and photo features, quantile models for listing-specific intervals, Optuna "
              "tuning with grouped cross-validation, data from several snapshots over time, an occupancy model for "
              "revenue-optimal pricing, and ONNX export of the full ensemble."])
-    H1("13. Conclusion")
+    H1("14. Conclusion")
     P("The project delivered an end-to-end system for Airbnb price prediction across ten European cities. "
       "Validating the supposedly clean data found duplicates, a geocoding error affecting 4,580 Rome listings, "
       f"extreme price errors and {LOG['listings_in_both_day_types']:,} listings duplicated across weekday and "
@@ -498,7 +648,10 @@ def build():
       f"LightGBM explains {BEST['r2_log'] * 100:.1f}% of the variation in log price on unseen listings, with a "
       f"typical error of {pct(BEST['median_ape_pct'])}. PriceScope makes this usable: drop a pin, describe the "
       "listing, and get a price with an uncertainty range, an explanation and real comparable listings. The "
-      "system is publicly deployed and fully reproducible from the GitHub repository.")
+      "Route Planner adds a Design and Analysis of Algorithms component: Dijkstra, Bellman-Ford, Held-Karp and "
+      "2-opt, implemented from scratch, verified by unit tests and compared empirically against their "
+      "theoretical complexity. The system is publicly deployed and fully reproducible from the GitHub "
+      "repository.")
     H2("References")
     for r in [
         "Gyódi, K. and Nawaro, Ł. (2021). Determinants of Airbnb prices in European cities: A spatial "
@@ -508,6 +661,13 @@ def build():
         "Chen, T. and Guestrin, C. (2016). XGBoost: A scalable tree boosting system. <i>KDD '16</i>, 785-794.",
         "Prokhorenkova, L. et al. (2018). CatBoost: unbiased boosting with categorical features. <i>NeurIPS</i> 31.",
         "Rosen, S. (1974). Hedonic prices and implicit markets. <i>Journal of Political Economy</i>, 82(1), 34-55.",
+        "Dijkstra, E. W. (1959). A note on two problems in connexion with graphs. <i>Numerische Mathematik</i>, 1, 269-271.",
+        "Bellman, R. (1958). On a routing problem. <i>Quarterly of Applied Mathematics</i>, 16(1), 87-90.",
+        "Held, M. and Karp, R. M. (1962). A dynamic programming approach to sequencing problems. <i>Journal of "
+        "the SIAM</i>, 10(1), 196-210.",
+        "Croes, G. A. (1958). A method for solving traveling-salesman problems. <i>Operations Research</i>, 6(6), 791-812.",
+        "Cormen, T. H., Leiserson, C. E., Rivest, R. L. and Stein, C. (2022). <i>Introduction to Algorithms</i>, "
+        "4th ed. MIT Press.",
     ]:
         story.append(Paragraph(r, S["bullet"], bulletText="•"))
 

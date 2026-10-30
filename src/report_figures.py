@@ -4,6 +4,7 @@ Error analysis retrains LightGBM on the same grouped 80/20 split used in train.p
 so every number here comes from listings the model did not see.
 """
 import json
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -118,12 +119,71 @@ def model_compare():
     fig.savefig(OUT / "model_compare.png"); plt.close(fig)
 
 
+def algorithm_benchmark():
+    """Empirical run times of the Route Planner algorithms and the 2-opt optimality gap."""
+    import random
+    import time
+
+    from algorithms import all_pairs, bellman_ford, build_graph, dijkstra, tsp_held_karp, tsp_heuristic
+
+    def pts(n, seed):
+        r = random.Random(seed)
+        return [(48.85 + r.uniform(-.05, .05), 2.35 + r.uniform(-.07, .07)) for _ in range(n)]
+
+    def best_ms(fn, reps=3):
+        out = []
+        for _ in range(reps):
+            t = time.perf_counter(); fn(); out.append((time.perf_counter() - t) * 1000)
+        return min(out)
+
+    sp = {"n": [10, 25, 50, 100, 200, 400], "dijkstra": [], "bellman_ford": [], "edges": []}
+    for n in sp["n"]:
+        g = build_graph(pts(n, n), k=3)
+        sp["edges"].append(sum(len(v) for v in g.values()) // 2)
+        sp["dijkstra"].append(best_ms(lambda: dijkstra(g, 0)))
+        sp["bellman_ford"].append(best_ms(lambda: bellman_ford(g, 0)))
+
+    tsp = {"n": list(range(4, 14)), "held_karp": [], "heuristic": [], "gap_mean": [], "gap_max": [], "optimal_pct": []}
+    for n in tsp["n"]:
+        D, _ = all_pairs(build_graph(pts(n, 100 + n), k=3))
+        tsp["held_karp"].append(best_ms(lambda: tsp_held_karp(D, 0), reps=1 if n > 11 else 3))
+        tsp["heuristic"].append(best_ms(lambda: tsp_heuristic(D, 0)))
+        gaps = []
+        for seed in range(25):
+            D, _ = all_pairs(build_graph(pts(n, 1000 * n + seed), k=3))
+            gaps.append((tsp_heuristic(D, 0)[1] / tsp_held_karp(D, 0)[1] - 1) * 100)
+        tsp["gap_mean"].append(float(np.mean(gaps)))
+        tsp["gap_max"].append(float(np.max(gaps)))
+        tsp["optimal_pct"].append(float(np.mean(np.array(gaps) < 1e-6) * 100))
+
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4.2))
+    ax[0].plot(sp["n"], sp["dijkstra"], "o-", color="#2563EB", label="Dijkstra  O((V+E) log V)")
+    ax[0].plot(sp["n"], sp["bellman_ford"], "s-", color="#6366F1", label="Bellman-Ford  O(V·E)")
+    ax[0].set(xscale="log", yscale="log", xlabel="Stops V (k = 3)", ylabel="Run time (ms)", title="Single-source shortest paths")
+    ax[0].legend(fontsize=8)
+    ax[1].plot(tsp["n"], tsp["held_karp"], "o-", color="#FF385C", label="Held-Karp  O(n²·2ⁿ)")
+    ax[1].plot(tsp["n"], tsp["heuristic"], "s-", color="#F59E0B", label="NN + 2-opt  O(n²)/pass")
+    ax[1].set(yscale="log", xlabel="Stops n", ylabel="Run time (ms)", title="Travelling Salesman")
+    ax[1].legend(fontsize=8)
+    ax[2].bar(tsp["n"], tsp["gap_mean"], color="#F59E0B", label="mean gap")
+    ax[2].plot(tsp["n"], tsp["gap_max"], "k.--", label="worst of 25")
+    ax[2].set(xlabel="Stops n", ylabel="% longer than optimum", title="NN + 2-opt vs exact optimum (25 instances each)")
+    ax[2].legend(fontsize=8)
+    fig.savefig(OUT / "algo_benchmark.png"); plt.close(fig)
+    (REPORTS_DIR / "algo_benchmark.json").write_text(json.dumps({"shortest_path": sp, "tsp": tsp}, indent=1))
+    return sp, tsp
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    if "--algorithms" in sys.argv:  # only the Route Planner benchmark
+        algorithm_benchmark()
+        return
     df = base_features(pd.read_csv(PROCESSED_CSV))
     city_maps(df)
     error_analysis(df)
     model_compare()
+    algorithm_benchmark()
     print("Report figures saved to", OUT)
 
 
