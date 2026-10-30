@@ -21,5 +21,6 @@ trees (identical predictions, R² 0.854), which keeps the serverless bundle smal
 - **Dashboard**: KPIs, Europe price map, charts and a city scorecard
 - **Map Explorer**: all listings per city; points, price heatmap and density layers; filters
 - **Price Predictor**: click the map, describe the listing, get a price with an interval, SHAP drivers and comparable listings
+- **Route Planner**: pick the Airbnbs to visit; shortest paths by Dijkstra and Bellman-Ford, and the best visiting order by the Travelling Salesman algorithms (Held-Karp exact, nearest neighbour + 2-opt). All implemented from scratch in `src/algorithms.py`, tested with `python -m unittest discover tests`
 - **Model Performance**: leaderboard, feature importance, per-city accuracy
 - **Project Report**: full write-up (also in `reports/REPORT.md` and `reports/REPORT.docx`)

@@ -175,6 +175,7 @@ The two most important features are `proximity_index` (23% of total gain) and `a
 | **Dashboard** | KPI cards, a map of Europe with a price bubble per city, charts of price by city, room type, distance to centre and capacity, and a city scorecard |
 | **Map Explorer** | every listing in a city on an interactive Leaflet map, coloured by price quintile. Switch between point, price-heatmap and density layers; filter by room type, weekday/weekend, maximum price, guests and superhost |
 | **Price Predictor** | pick a city, click or drag a pin, describe the listing and get an instant estimate. Shows the 2-night price, per-night price, an 80% prediction interval, comparison with the city and neighbourhood medians, a percentile rank, SHAP price drivers, the auto-derived location profile, the individual model predictions and nearby comparable listings shown on the map |
+| **Route Planner** | select the listings to visit on a city map. Shortest paths by Dijkstra and Bellman-Ford, and the best visiting order by the Travelling Salesman algorithms (section 7.1) |
 | **Model Performance** | leaderboard, feature importance, accuracy per city, actual-vs-predicted and SHAP plots |
 | **Project Report** | this document, rendered inside the app |
 
@@ -182,7 +183,24 @@ The two most important features are `proximity_index` (23% of total gain) and `a
 
 **Prediction interval:** the 10th–90th percentile of the ensemble's residuals on the test set, computed separately for each city.
 
-**REST API:** `POST /api/predict` (JSON in, prediction out), `GET /api/listings/<city>`, `GET /api/health`.
+**REST API:** `POST /api/predict` (JSON in, prediction out), `POST /api/route`, `GET /api/listings/<city>`, `GET /api/health`.
+
+### 7.1 Route Planner (Design and Analysis of Algorithms)
+
+The user clicks up to 20 listings on the map and marks one as the start. `src/algorithms.py` implements every algorithm from scratch in plain Python:
+
+| Algorithm | Problem solved | Time complexity | Notes |
+|---|---|---|---|
+| k-nearest-neighbour graph | builds the network | O(V² log V) | each stop is linked to its k nearest stops (haversine km); components are joined by DFS until connected |
+| Dijkstra | shortest path from the start to every stop | O((V + E) log V) | binary min-heap with lazy deletion; needs non-negative weights |
+| Bellman-Ford | the same, by edge relaxation | O(V · E) | at most V−1 passes with early exit, then one extra pass for negative-cycle detection |
+| All-pairs Dijkstra | distance matrix for the TSP | O(V (V + E) log V) | the TSP runs on graph distances, so each leg follows a real shortest path |
+| Held-Karp | exact Travelling Salesman tour | O(n² · 2ⁿ) time, O(n · 2ⁿ) memory | bitmask dynamic programming; used for up to 12 stops |
+| Nearest neighbour + 2-opt | heuristic Travelling Salesman tour | O(n²) per 2-opt pass | greedy tour, then segment reversals while they shorten it |
+
+The page shows each algorithm's result, path or tour, operation counts (edge relaxations, heap pushes, Bellman-Ford passes, DP transitions, 2-opt swaps) and run time, together with the gap between the heuristic and the exact optimum. It also checks that Dijkstra and Bellman-Ford give identical distances to every stop, and shows the all-pairs distance matrix.
+
+**Correctness tests** (`python -m unittest discover tests`, 11 tests): Dijkstra and Bellman-Ford against Floyd-Warshall on 30 random graphs, a hand-worked example, negative edges and negative-cycle detection for Bellman-Ford, Held-Karp against O(n!) brute force for 3–8 stops, the heuristic never beating the exact optimum, and tours visiting every stop exactly once.
 
 ---
 
@@ -213,6 +231,8 @@ src/eda.py                  step 2: EDA figures and dashboard data
 src/features.py             feature engineering
 src/train.py                step 3: training, evaluation, export
 src/predictor.py            inference service (location features, SHAP)
+src/algorithms.py           Dijkstra, Bellman-Ford, Held-Karp, 2-opt (Route Planner)
+tests/                      unit tests for the algorithms
 app.py                      Flask web app and REST API
 templates/, static/         UI (HTML, CSS, JS, figures)
 models/                     model.joblib, metrics.json, eda.json

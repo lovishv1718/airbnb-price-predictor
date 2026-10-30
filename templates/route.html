@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Route Planner{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Route Planner</h1><p>Pick the Airbnbs you want to visit. Shortest paths by Dijkstra and Bellman-Ford, the best visiting order by the Travelling Salesman algorithms.</p></div>
+  <span class="pill"><span class="dot"></span>Algorithms written from scratch in Python</span>
+</div>
+
+<div class="explorer route-layout">
+  <div class="card route-side">
+    <div class="field"><label>City</label>
+      <select id="city">{% for c in cities %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Stops <span class="val" id="count">0 / 20</span></label>
+      <div class="small muted">Click listings on the map to add or remove them. The radio button marks the start of the trip.</div>
+      <div id="stops" class="stops"></div>
+    </div>
+    <div class="grid g2" style="gap:8px;margin-bottom:12px">
+      <button type="button" class="btn ghost" id="random">Pick 8 random</button>
+      <button type="button" class="btn ghost" id="clear">Clear</button>
+    </div>
+    <div class="field"><label>Shortest path target</label><select id="target"></select></div>
+    <div class="field"><label>Graph neighbours k <span class="val" id="k-v">3</span></label>
+      <input type="range" id="k" min="1" max="6" value="3">
+      <div class="small muted">Each stop is joined to its k nearest stops, so paths can route through other stops.</div></div>
+    <button class="btn" id="go" type="button" disabled>⌁ Find routes</button>
+  </div>
+  <div class="card map-card">
+    <div id="map" class="map"></div>
+    <div class="stats-box" id="layers-box">
+      <div class="muted small" style="margin-bottom:6px">Show on map</div>
+      <label class="layer-opt"><input type="checkbox" data-layer="graph" checked> Graph edges</label>
+      <label class="layer-opt"><input type="checkbox" data-layer="path" checked> <span class="sw" style="background:#2563EB"></span>Shortest path</label>
+      <label class="layer-opt"><input type="checkbox" data-layer="exact" checked> <span class="sw" style="background:#FF385C"></span>TSP exact</label>
+      <label class="layer-opt"><input type="checkbox" data-layer="heur"> <span class="sw" style="background:#F59E0B"></span>TSP heuristic</label>
+    </div>
+  </div>
+</div>
+
+<div id="results" style="margin-top:18px"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CENTERS = {{ centers|tojson }};
+const EXACT_LIMIT = {{ exact_limit }}, MAX_STOPS = 20;
+const $ = id => document.getElementById(id);
+const map = baseMap("map", CENTERS.Paris, 13);
+const base = L.layerGroup().addTo(map), stopLayer = L.layerGroup().addTo(map);
+const layers = { graph: L.layerGroup().addTo(map), path: L.layerGroup().addTo(map),
+                 exact: L.layerGroup().addTo(map), heur: L.layerGroup() };
+let rows = [], q = [], stops = [], start = 0, result = null;
+
+async function loadCity(city) {
+  const d = await (await fetch(`/api/listings/${encodeURIComponent(city)}`)).json();
+  rows = d.rows; q = quantiles(rows.map(r => r[2]), [.2, .4, .6, .8]);
+  map.setView(d.center, 13);
+  base.clearLayers();
+  rows.forEach((r, i) => L.circleMarker([r[0], r[1]], { radius: 4, stroke: false, fillOpacity: .55, fillColor: priceColor(r[2], q) })
+    .bindTooltip(`${eur(r[2])} · ${ROOM_TYPES[r[3]]} · ${r[5]} guests`).on("click", () => toggle(i)).addTo(base));
+  stops = []; start = 0; clearResult(); render();
+}
+
+function toggle(i) {
+  const at = stops.indexOf(i);
+  if (at >= 0) { stops.splice(at, 1); if (start >= stops.length) start = 0; }
+  else if (stops.length < MAX_STOPS) stops.push(i);
+  clearResult(); render();
+}
+
+function render() {
+  stopLayer.clearLayers();
+  stops.forEach((i, n) => L.marker([rows[i][0], rows[i][1]], { icon: L.divIcon({ className: "",
+      html: `<div class="num-icon ${n === start ? "start" : ""}">${n + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+    .on("click", () => toggle(i)).addTo(stopLayer));
+  $("count").textContent = `${stops.length} / ${MAX_STOPS}`;
+  $("stops").innerHTML = stops.length ? stops.map((i, n) => { const r = rows[i]; return `
+    <div class="stop"><input type="radio" name="start" ${n === start ? "checked" : ""} data-n="${n}" title="Start here">
+      <span class="num-icon sm ${n === start ? "start" : ""}">${n + 1}</span>
+      <span class="grow"><b>${eur(r[2])}</b> <span class="muted small">${ROOM_TYPES[r[3]].replace("/apt", "")} · ${r[5]} guests · ${r[9]} km from centre</span></span>
+      <button type="button" class="x" data-i="${i}" title="Remove">×</button></div>`; }).join("")
+    : `<div class="placeholder small" style="padding:18px">No stops yet</div>`;
+  const prev = $("target").value;
+  $("target").innerHTML = stops.map((_, n) => `<option value="${n}">Stop ${n + 1}</option>`).filter((_, n) => n !== start).join("");
+  if ([...$("target").options].some(o => o.value === prev)) $("target").value = prev;
+  $("go").disabled = stops.length < 2;
+}
+
+$("stops").addEventListener("click", e => {
+  if (e.target.matches(".x")) toggle(+e.target.dataset.i);
+  if (e.target.matches("input[type=radio]")) { start = +e.target.dataset.n; clearResult(); render(); }
+});
+$("random").addEventListener("click", () => {
+  stops = []; start = 0;
+  while (stops.length < Math.min(8, rows.length)) { const i = Math.floor(Math.random() * rows.length); if (!stops.includes(i)) stops.push(i); }
+  clearResult(); render(); fitStops();
+});
+$("clear").addEventListener("click", () => { stops = []; start = 0; clearResult(); render(); });
+$("k").addEventListener("input", () => $("k-v").textContent = $("k").value);
+$("city").addEventListener("change", e => loadCity(e.target.value));
+document.querySelectorAll("[data-layer]").forEach(cb => cb.addEventListener("change", () =>
+  cb.checked ? layers[cb.dataset.layer].addTo(map) : map.removeLayer(layers[cb.dataset.layer])));
+
+function fitStops() { if (stops.length) map.fitBounds(stops.map(i => [rows[i][0], rows[i][1]]), { padding: [60, 60], maxZoom: 15 }); }
+function clearResult() { result = null; Object.values(layers).forEach(l => l.clearLayers()); $("results").innerHTML = ""; }
+const ll = n => [rows[stops[n]][0], rows[stops[n]][1]];
+const seq = a => a.map(n => `<span class="num-icon sm">${n + 1}</span>`).join('<span class="arrow">→</span>');
+
+$("go").addEventListener("click", async () => {
+  $("go").disabled = true; $("go").textContent = "Computing…";
+  const body = { points: stops.map(i => ({ lat: rows[i][0], lon: rows[i][1] })), start, target: +$("target").value, k: +$("k").value };
+  try {
+    const r = await fetch("/api/route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    result = await r.json();
+    if (result.error) throw new Error(result.error);
+    draw(); show();
+  } catch (err) { $("results").innerHTML = `<div class="card placeholder">⚠ ${err.message}</div>`; }
+  $("go").disabled = false; $("go").textContent = "⌁ Find routes";
+});
+
+function draw() {
+  Object.values(layers).forEach(l => l.clearLayers());
+  result.graph.edges.forEach(([u, v, w]) => L.polyline([ll(u), ll(v)], { color: "#6B7280", weight: 1.5, dashArray: "4 5", opacity: .8 })
+    .bindTooltip(`${u + 1} – ${v + 1}: ${w.toFixed(2)} km`).addTo(layers.graph));
+  L.polyline(result.dijkstra.path.map(ll), { color: "#2563EB", weight: 7, opacity: .75 }).addTo(layers.path);
+  if (result.tsp_exact) L.polyline(result.tsp_exact.walk.map(ll), { color: "#FF385C", weight: 3.5, opacity: .95 }).addTo(layers.exact);
+  L.polyline(result.tsp_heuristic.walk.map(ll), { color: "#F59E0B", weight: 3.5, opacity: .95, dashArray: "8 6" }).addTo(layers.heur);
+  const tour = (result.tsp_exact || result.tsp_heuristic).tour;
+  tour.slice(0, -1).forEach((n, pos) => L.marker(ll(n), { interactive: false, icon: L.divIcon({ className: "",
+    html: `<div class="order-tag">#${pos + 1}</div>`, iconSize: [30, 16], iconAnchor: [-8, 20] }) }).addTo(layers.exact));
+  fitStops();
+}
+
+function show() {
+  const R = result, n = R.n, E = R.graph.num_edges, d = R.dijkstra, b = R.bellman_ford, x = R.tsp_exact, h = R.tsp_heuristic;
+  const price = stops.reduce((s, i) => s + rows[i][2], 0);
+  const gap = x ? ((h.km / x.km - 1) * 100) : null;
+  const card = (cls, title, cx, value, unit, body) => `<div class="card algo ${cls}"><div class="algo-head"><h3>${title}</h3><code>${cx}</code></div>
+    <div class="algo-val">${value}<small> ${unit}</small></div>${body}</div>`;
+  const stat = (k, v) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+  $("results").innerHTML = `<div class="fade-in">
+  <div class="grid kpis">
+    <div class="card kpi accent"><div class="label">Stops</div><div class="value">${n}</div><div class="hint">start at stop ${R.start + 1}</div></div>
+    <div class="card kpi"><div class="label">Graph</div><div class="value">${n} V · ${E} E</div><div class="hint">k = ${R.k} nearest neighbours</div></div>
+    <div class="card kpi"><div class="label">Best round trip</div><div class="value">${(x || h).km.toFixed(2)} km</div><div class="hint">${x ? "exact optimum" : "heuristic"}</div></div>
+    <div class="card kpi"><div class="label">Stays at these listings</div><div class="value">${eur(price)}</div><div class="hint">sum of 2-night prices</div></div>
+  </div>
+  <div class="grid algo-grid">
+    ${card("blue", "Dijkstra", "O((V + E) log V)", d.distance.toFixed(2), `km to stop ${R.target + 1}`,
+      `<div class="seq">${seq(d.path)}</div>${stat("Edge relaxations", d.relaxations)}${stat("Heap pushes", d.heap_pushes)}
+       ${stat("Settled order", d.visit_order.map(v => v + 1).join(", "))}${stat("Run time", d.ms.toFixed(3) + " ms")}
+       <p class="small muted">Greedy: always settles the closest unsettled stop using a binary min-heap. Needs non-negative weights.</p>`)}
+    ${card("indigo", "Bellman-Ford", "O(V · E)", b.distance.toFixed(2), `km to stop ${R.target + 1}`,
+      `<div class="seq">${seq(b.path)}</div>${stat("Passes used", `${b.passes} of ${b.max_passes}`)}${stat("Edge relaxations", b.relaxations)}
+       ${stat("Negative cycle", b.negative_cycle ? "yes" : "none")}${stat("Run time", b.ms.toFixed(3) + " ms")}
+       <p class="small muted">Relaxes all ${b.directed_edges} directed edges each pass and stops early when nothing changes. Also works with negative weights.</p>`)}
+    ${x ? card("red", "TSP · Held-Karp (exact)", "O(n² · 2ⁿ)", x.km.toFixed(2), "km round trip",
+      `<div class="seq">${seq(x.tour)}</div>${stat("Subsets", x.subsets.toLocaleString())}${stat("DP transitions", x.states.toLocaleString())}
+       ${stat("Run time", x.ms.toFixed(3) + " ms")}<p class="small muted">Dynamic programming over bitmask subsets. Guaranteed optimal; practical up to ${EXACT_LIMIT} stops.</p>`)
+      : `<div class="card algo red"><div class="algo-head"><h3>TSP · Held-Karp (exact)</h3><code>O(n² · 2ⁿ)</code></div>
+         <p class="muted">Skipped: ${n} stops is above the exact limit of ${EXACT_LIMIT}. With n = ${n} the DP would need about ${(n * n * 2 ** (n - 1)).toLocaleString()} steps.</p></div>`}
+    ${card("amber", "TSP · Nearest neighbour + 2-opt", "O(n²) per pass", h.km.toFixed(2), "km round trip",
+      `<div class="seq">${seq(h.tour)}</div>${stat("Greedy tour alone", h.greedy_km.toFixed(2) + " km")}${stat("2-opt swaps", h.two_opt_swaps)}
+       ${stat("Gap to optimum", gap === null ? "n/a" : gap.toFixed(2) + "%")}${stat("Run time", h.ms.toFixed(3) + " ms")}
+       <p class="small muted">Greedy tour, then reverses segments while that shortens the tour. Fast but not guaranteed optimal.</p>`)}
+  </div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card"><h3>Shortest distances from stop ${R.start + 1}</h3><div class="sub">Dijkstra and Bellman-Ford must agree on every stop: ${R.agree ? "<b style='color:#059669'>they do ✓</b>" : "<b class='pos'>mismatch</b>"}</div>
+      <div class="table-wrap"><table><thead><tr><th>Stop</th><th>Dijkstra km</th><th>Bellman-Ford km</th><th>Path</th></tr></thead><tbody>
+      ${d.all_distances.map((v, i) => `<tr><td><b>${i + 1}</b></td><td>${v.toFixed(3)}</td><td>${b.all_distances[i].toFixed(3)}</td>
+        <td class="small">${pathTo(i).map(p => p + 1).join(" → ")}</td></tr>`).join("")}
+      </tbody></table></div></div>
+    <div class="card"><h3>All-pairs shortest-path matrix (km)</h3><div class="sub">Dijkstra run from every stop; this is the distance matrix the TSP solvers use</div>
+      <div class="table-wrap"><table class="matrix"><thead><tr><th></th>${R.matrix.map((_, j) => `<th>${j + 1}</th>`).join("")}</tr></thead><tbody>
+      ${R.matrix.map((row, i) => `<tr><th>${i + 1}</th>${row.map(v => `<td>${v ? v.toFixed(2) : "–"}</td>`).join("")}</tr>`).join("")}
+      </tbody></table></div></div>
+  </div></div>`;
+}
+
+function pathTo(t) {  // rebuild a path from Dijkstra's shortest-path tree
+  const parent = {}; result.dijkstra.tree.forEach(([p, v]) => parent[v] = p);
+  const out = [t]; while (parent[out[0]] !== undefined) out.unshift(parent[out[0]]);
+  return out;
+}
+
+const initial = new URLSearchParams(location.search).get("city") || "Paris";
+$("city").value = initial; loadCity(initial);
+</script>
+{% endblock %}

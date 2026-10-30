@@ -8,6 +8,7 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+from algorithms import EXACT_TSP_LIMIT, plan_routes  # noqa: E402
 from config import MODELS_DIR, REPORTS_DIR, TARGET  # noqa: E402
 from predictor import Predictor  # noqa: E402
 
@@ -39,6 +40,11 @@ def explorer():
 @app.route("/predict")
 def predict_page():
     return render_template("predict.html", centers=predictor.centers, page="predict")
+
+
+@app.route("/route")
+def route_page():
+    return render_template("route.html", centers=predictor.centers, exact_limit=EXACT_TSP_LIMIT, page="route")
 
 
 @app.route("/model")
@@ -80,6 +86,24 @@ def api_predict():
         return jsonify(predictor.predict(req))
     except (ValueError, KeyError) as e:
         return jsonify({"error": str(e)}), 400
+
+
+MAX_ROUTE_STOPS = 20
+
+
+@app.route("/api/route", methods=["POST"])
+def api_route():
+    req = request.get_json(force=True)
+    try:
+        points = [(float(p["lat"]), float(p["lon"])) for p in req["points"]]
+        start, target, k = int(req.get("start", 0)), int(req.get("target", len(points) - 1)), int(req.get("k", 3))
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "Send points as [{lat, lon}, ...] plus optional start, target and k"}), 400
+    if not 2 <= len(points) <= MAX_ROUTE_STOPS:
+        return jsonify({"error": f"Select between 2 and {MAX_ROUTE_STOPS} listings"}), 400
+    if not (0 <= start < len(points) and 0 <= target < len(points)) or not 1 <= k <= 8:
+        return jsonify({"error": "start/target out of range or k not in 1-8"}), 400
+    return jsonify(plan_routes(points, start=start, target=target, k=min(k, len(points) - 1)))
 
 
 @app.route("/api/health")
