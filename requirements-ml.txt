@@ -1,0 +1,14 @@
+flask>=3.0
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+scipy>=1.13
+lightgbm>=4.3
+xgboost>=2.1
+catboost>=1.2
+shap>=0.46
+matplotlib>=3.8
+seaborn>=0.13
+joblib>=1.4
+markdown>=3.6
+python-docx>=1.1

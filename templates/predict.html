@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Price Predictor{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Price Predictor</h1><p>Choose a city, drop a pin on the map, describe the listing, and get an AI price estimate.</p></div>
+  <span class="pill"><span class="dot"></span>{{ serving }} · median error {{ '%.1f' % best.median_ape_pct }}%</span>
+</div>
+<div class="grid g-pred">
+  <form class="card" id="form" onsubmit="return false">
+    <div class="field"><label>City</label><select id="city" name="city">{% for c in cities %}<option {{ 'selected' if c=='Paris' }}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Location <span class="val small" id="coords"></span></label>
+      <div class="small muted">Click on the map to move the pin, or drag it.</div></div>
+    <div class="field"><label>Room type</label>
+      <div class="seg" id="room">{% for r in room_types %}<button type="button" data-v="{{ r }}" class="{{ 'on' if loop.first }}">{{ r.replace('/apt','') }}</button>{% endfor %}</div></div>
+    <div class="grid g2" style="gap:12px">
+      <div class="field"><label>Max guests <span class="val" id="mg-v">2</span></label><input type="range" id="max_guests" min="2" max="6" value="2"></div>
+      <div class="field"><label>Bedrooms <span class="val" id="nb-v">1</span></label><input type="range" id="num_bedrooms" min="0" max="6" value="1"></div>
+    </div>
+    <div class="field"><label>Stay</label>
+      <div class="seg" id="day"><button type="button" data-v="weekday" class="on">Weekday</button><button type="button" data-v="weekend">Weekend</button></div></div>
+    <div class="grid g2" style="gap:12px">
+      <div class="field"><label>Cleanliness <span class="val" id="cl-v">9.5</span></label><input type="range" id="cleanliness_score" min="2" max="10" step=".5" value="9.5"></div>
+      <div class="field"><label>Satisfaction <span class="val" id="gs-v">93</span></label><input type="range" id="guest_satisfaction_score" min="20" max="100" value="93"></div>
+    </div>
+    <div class="toggles" style="margin-bottom:14px">
+      <label class="toggle">★ Superhost<input type="checkbox" id="is_superhost"></label>
+      <label class="toggle">Host has multiple listings<input type="checkbox" id="is_multi_listing"></label>
+      <label class="toggle">Business / professional host<input type="checkbox" id="is_business_listing"></label>
+    </div>
+    <details><summary>Advanced: override location features</summary>
+      <div class="small muted" style="margin-top:6px">Leave empty to auto-derive from the 25 nearest real listings.</div>
+      <div class="grid">
+        <div><label class="small">Dist. to centre (km)</label><input type="number" step=".01" id="distance_city_center"></div>
+        <div><label class="small">Dist. to metro (km)</label><input type="number" step=".01" id="distance_metro"></div>
+        <div><label class="small">Attraction idx (0–100)</label><input type="number" step=".1" id="attraction_index_norm"></div>
+        <div><label class="small">Restaurant idx (0–100)</label><input type="number" step=".1" id="restaurant_index_norm"></div>
+      </div>
+    </details>
+    <button class="btn" id="go" type="button">✦ Predict price</button>
+  </form>
+
+  <div class="grid" style="gap:18px">
+    <div class="card" style="padding:12px"><div id="pred-map" class="map"></div></div>
+    <div class="card" id="result"><div class="placeholder"><div class="icon">✦</div><div>Your price estimate will appear here.</div></div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CENTERS = {{ centers|tojson }};
+const $ = id => document.getElementById(id);
+const state = { room_type: "Entire home/apt", day_type: "weekday" };
+const map = baseMap("pred-map", CENTERS.Paris, 13);
+const pin = L.marker(CENTERS.Paris, { draggable: true }).addTo(map);
+let compLayer = L.layerGroup().addTo(map), centreMark = null;
+
+function setPin(ll) { pin.setLatLng(ll); $("coords").textContent = `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`; }
+function moveCity() {
+  const c = CENTERS[$("city").value]; map.setView(c, 13); setPin(L.latLng(c[0] + 0.006, c[1] + 0.008));
+  if (centreMark) centreMark.remove();
+  centreMark = L.circleMarker(c, { radius: 7, color: "#111827", fillColor: "#fff", fillOpacity: 1, weight: 3 }).addTo(map).bindTooltip("City centre");
+  compLayer.clearLayers();
+}
+map.on("click", e => { setPin(e.latlng); predict(); });
+pin.on("dragend", () => { setPin(pin.getLatLng()); predict(); });
+$("city").addEventListener("change", () => { moveCity(); predict(); });
+
+document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target));
+  state[seg.id === "room" ? "room_type" : "day_type"] = e.target.dataset.v;
+}));
+[["max_guests", "mg-v"], ["num_bedrooms", "nb-v"], ["cleanliness_score", "cl-v"], ["guest_satisfaction_score", "gs-v"]]
+  .forEach(([i, v]) => $(i).addEventListener("input", () => $(v).textContent = $(i).value));
+
+async function predict() {
+  const ll = pin.getLatLng();
+  const body = { city: $("city").value, latitude: ll.lat, longitude: ll.lng, ...state };
+  ["max_guests", "num_bedrooms", "cleanliness_score", "guest_satisfaction_score",
+   "distance_city_center", "distance_metro", "attraction_index_norm", "restaurant_index_norm"].forEach(k => body[k] = $(k).value);
+  ["is_superhost", "is_multi_listing", "is_business_listing"].forEach(k => body[k] = $(k).checked ? 1 : 0);
+  $("go").disabled = true; $("go").textContent = "Predicting…";
+  try {
+    const r = await fetch("/api/predict", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    show(d, body);
+  } catch (err) { $("result").innerHTML = `<div class="placeholder">⚠ ${err.message}</div>`; }
+  $("go").disabled = false; $("go").textContent = "✦ Predict price";
+}
+$("go").addEventListener("click", predict);
+
+function show(d, body) {
+  const span = d.high - d.low, pos = Math.max(0, Math.min(100, (d.price - d.low) / span * 100));
+  const maxAbs = Math.max(...d.drivers.map(x => Math.abs(x.pct)), 1);
+  const vsCity = (d.price / d.city_room_median - 1) * 100;
+  $("result").innerHTML = `<div class="fade-in">
+    <div class="result-hero">
+      <div>
+        <div class="muted small">Estimated price · ${body.city} · ${body.room_type} · ${body.day_type}</div>
+        <div class="price-big">${eur(d.price)} <small>/ 2-night stay</small></div>
+        <div class="muted">≈ <b style="color:var(--ink)">${eur(d.per_night)}</b> per night</div>
+        <div class="range-bar"><div class="mark" style="left:${pos}%"></div></div>
+        <div class="range-labels"><span>${eur(d.low)}</span><span>80% prediction interval</span><span>${eur(d.high)}</span></div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini"><div class="label">City median (${body.room_type.replace("/apt", "")})</div><div class="v">${eur(d.city_room_median)}</div></div>
+        <div class="mini"><div class="label">vs city median</div><div class="v ${vsCity >= 0 ? "pos" : "neg"}">${vsCity >= 0 ? "+" : ""}${vsCity.toFixed(0)}%</div></div>
+        <div class="mini"><div class="label">Neighbourhood median</div><div class="v">${eur(d.neighbourhood_median)}</div></div>
+        <div class="mini"><div class="label">Pricier than</div><div class="v">${d.percentile_in_city}%</div></div>
+      </div>
+    </div>
+    <h3 style="margin-top:24px">What drives this price</h3>
+    <div class="sub">Effect of each factor vs an average European listing ({{ 'tree-path attributions' if lite else 'SHAP values' }} from LightGBM)</div>
+    ${d.drivers.map(x => `<div class="driver"><span>${x.name}</span>
+      <div class="track"><div class="fill" style="${x.pct >= 0 ? "left:50%" : `right:50%`};width:${Math.abs(x.pct) / maxAbs * 50}%;background:${x.pct >= 0 ? "#FF385C" : "#2563EB"}"></div></div>
+      <span class="pct ${x.pct >= 0 ? "pos" : "neg"}">${x.pct >= 0 ? "+" : ""}${x.pct.toFixed(0)}%</span></div>`).join("")}
+    <h3 style="margin-top:22px">Location profile (auto-derived)</h3>
+    <div class="sub">Estimated from the nearest real listings within ~${d.neighbour_radius_km} km</div>
+    <div class="loc-chips">
+      <span class="chip">Centre<b>${d.location.distance_city_center.toFixed(2)} km</b></span>
+      <span class="chip">Metro<b>${d.location.distance_metro.toFixed(2)} km</b></span>
+      <span class="chip">Attractions<b>${d.location.attraction_index_norm.toFixed(1)}</b></span>
+      <span class="chip">Restaurants<b>${d.location.restaurant_index_norm.toFixed(1)}</b></span>
+    </div>
+    <h3 style="margin-top:22px">Model agreement</h3>
+    <div class="loc-chips" style="margin-top:8px">${Object.entries(d.per_model).map(([k, v]) => `<span class="chip">${k}<b>${eur(v)}</b></span>`).join("")}</div>
+    ${d.comps.length ? `<h3 style="margin-top:22px">Comparable listings nearby</h3>
+    <div class="table-wrap"><table><thead><tr><th>Price</th><th>Guests</th><th>Bedrooms</th><th>Day</th><th>Distance</th></tr></thead><tbody>
+    ${d.comps.map(c => `<tr><td><b>${eur(c.price)}</b></td><td>${c.guests}</td><td>${c.bedrooms}</td><td>${c.day_type}</td><td>${c.km} km</td></tr>`).join("")}
+    </tbody></table></div>` : ""}
+  </div>`;
+  compLayer.clearLayers();
+  d.comps.forEach(c => L.circleMarker([c.lat, c.lon], { radius: 6, color: "#fff", weight: 2, fillColor: "#2563EB", fillOpacity: .9 })
+    .bindTooltip(`${eur(c.price)} · ${c.guests} guests`).addTo(compLayer));
+}
+moveCity(); predict();
+</script>
+{% endblock %}

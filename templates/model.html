@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Model Performance{% endblock %}
+{% block content %}
+{% set b = m.results[m.best_model] %}
+<div class="page-head">
+  <div><h1>Model Performance</h1><p>All scores are on a held-out test set of {{ "{:,}".format(m.split.test_rows) }} rows from listings the model never saw ({{ m.split.strategy }}).</p></div>
+</div>
+<div class="grid kpis">
+  <div class="card kpi accent"><div class="label">R² (log price)</div><div class="value">{{ '%.3f' % b.r2_log }}</div><div class="hint">variance explained</div></div>
+  <div class="card kpi"><div class="label">Median abs. error</div><div class="value">{{ '%.1f' % b.median_ape_pct }}%</div><div class="hint">typical miss</div></div>
+  <div class="card kpi"><div class="label">Within ±30%</div><div class="value">{{ '%.1f' % b.within_30pct }}%</div><div class="hint">of predictions</div></div>
+  <div class="card kpi"><div class="label">MAE</div><div class="value">€{{ '%.0f' % b.mae_eur }}</div><div class="hint">mean absolute error</div></div>
+  <div class="card kpi"><div class="label">Features</div><div class="value">{{ m.n_features }}</div><div class="hint">incl. 6 engineered</div></div>
+</div>
+
+<div class="grid g3" style="margin-bottom:18px">
+  <div class="card"><h3>Model leaderboard</h3><div class="sub">Hold-out test set · log-price target</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Model</th><th>R² log</th><th>R² €</th><th>MAE €</th><th>RMSE €</th><th>MAPE</th><th>Median APE</th><th>±20%</th><th>±30%</th></tr></thead>
+      <tbody>
+      {% for name, r in m.results.items() %}
+        <tr><td><b>{{ name }}</b> {% if name == m.best_model %}<span class="tag best">production</span>{% endif %}</td>
+          <td>{{ '%.4f' % r.r2_log }}</td><td>{{ '%.3f' % r.r2_eur }}</td><td>{{ '%.1f' % r.mae_eur }}</td><td>{{ '%.1f' % r.rmse_eur }}</td>
+          <td>{{ '%.1f' % r.mape_pct }}%</td><td>{{ '%.1f' % r.median_ape_pct }}%</td><td>{{ '%.1f' % r.within_20pct }}%</td><td>{{ '%.1f' % r.within_30pct }}%</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+    <p class="small muted" style="margin-top:12px">Ensemble weights: {% for k, v in m.weights.items() %}{{ k }} {{ '%.0f' % (v*100) }}%{{ ', ' if not loop.last }}{% endfor %}.
+      For reference, a naive random row split (which leaks the weekday/weekend twin of each listing) would report R² {{ '%.3f' % m.random_split_reference.r2_log }}; we report the stricter grouped score.</p>
+  </div>
+  <div class="card"><h3>Feature importance</h3><div class="sub">LightGBM gain, top 12</div><div id="c-imp" class="chart" style="height:400px"></div></div>
+</div>
+
+<div class="grid g2" style="margin-bottom:18px">
+  <div class="card"><h3>Accuracy by city</h3><div class="sub">Median absolute % error and R² per city</div><div id="c-city" class="chart"></div></div>
+  <div class="card"><h3>Actual vs predicted</h3><div class="sub">Hold-out set</div><img class="fig" src="/static/figures/10_actual_vs_pred.png" alt="Actual vs predicted"></div>
+</div>
+<div class="grid g2">
+  <div class="card"><h3>SHAP summary</h3><div class="sub">How each feature pushes the price up or down</div><img class="fig" src="/static/figures/12_shap_summary.png" alt="SHAP"></div>
+  <div class="card"><h3>Pipeline</h3><div class="sub">End-to-end workflow</div>
+    <ol style="line-height:2;color:var(--ink-2)">
+      <li><b>Cleaning</b>: dedupe, fix geocoding, type and domain checks, per-city 3×IQR outlier fence</li>
+      <li><b>Feature engineering</b>: log distances, guests/bedroom, attraction×restaurant, quality score, weekend flag</li>
+      <li><b>Leakage-safe split</b>: grouped by listing (weekday and weekend rows stay together)</li>
+      <li><b>Models</b>: Ridge, Random Forest, LightGBM, XGBoost, CatBoost (early stopping)</li>
+      <li><b>Ensemble</b>: weights optimised on a grouped validation fold</li>
+      <li><b>Serving</b>: refit on 100% data, location features derived from nearest listings, SHAP explanations</li>
+    </ol></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const M = {{ m|tojson }};
+const imp = Object.entries(M.feature_importance).sort((a, b) => b[1] - a[1]).slice(0, 12).reverse();
+plot("c-imp", [{ type: "bar", orientation: "h", y: imp.map(x => x[0]), x: imp.map(x => x[1] * 100), marker: { color: "#FF385C" },
+  hovertemplate: "%{y}: %{x:.1f}%<extra></extra>" }], { margin: { l: 170, r: 10, t: 0, b: 30 }, xaxis: { title: "% of total gain" } });
+const pc = Object.entries(M.per_city).sort((a, b) => a[1].median_ape_pct - b[1].median_ape_pct);
+plot("c-city", [
+  { type: "bar", name: "Median APE %", x: pc.map(x => x[0]), y: pc.map(x => x[1].median_ape_pct), marker: { color: "#10B981" } },
+  { type: "scatter", mode: "lines+markers", name: "R² (log)", x: pc.map(x => x[0]), y: pc.map(x => x[1].r2_log), yaxis: "y2", line: { color: "#FF385C" } },
+], { yaxis: { title: "Median APE %" }, yaxis2: { overlaying: "y", side: "right", range: [0, 1], title: "R²", showgrid: false }, margin: { l: 50, r: 50, t: 10, b: 40 } });
+</script>
+{% endblock %}

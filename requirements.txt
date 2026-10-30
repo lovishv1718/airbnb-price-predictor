@@ -1,0 +1,6 @@
+# Runtime dependencies for the web app (also used by Vercel).
+# The full training stack is in requirements-ml.txt.
+flask>=3.0
+numpy>=1.26
+pandas>=2.2
+markdown>=3.6

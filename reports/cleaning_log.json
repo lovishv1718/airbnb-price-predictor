@@ -1,0 +1,59 @@
+{
+  "raw_rows": 51707,
+  "raw_cols": 29,
+  "steps": [
+    {
+      "step": "Drop index column",
+      "rows_before": 51707,
+      "rows_after": 51707,
+      "removed": 0,
+      "note": "'Unnamed: 0' was a pandas export index"
+    },
+    {
+      "step": "Missing values check",
+      "rows_before": 51707,
+      "rows_after": 51707,
+      "removed": 0,
+      "note": "0 missing cells found"
+    },
+    {
+      "step": "Remove exact duplicates",
+      "rows_before": 51707,
+      "rows_after": 51644,
+      "removed": 63,
+      "note": ""
+    },
+    {
+      "step": "Fix country label for Rome",
+      "rows_before": 51644,
+      "rows_after": 51644,
+      "removed": 0,
+      "note": "4580 rows labelled 'Holy See (Vatican City State)' -> 'Italy'"
+    },
+    {
+      "step": "Room-type flag consistency",
+      "rows_before": 51644,
+      "rows_after": 51644,
+      "removed": 0,
+      "note": "room_type must agree with is_*_room flags"
+    },
+    {
+      "step": "Domain range checks",
+      "rows_before": 51644,
+      "rows_after": 51644,
+      "removed": 0,
+      "note": ""
+    },
+    {
+      "step": "Remove extreme price outliers",
+      "rows_before": 51644,
+      "rows_after": 51611,
+      "removed": 33,
+      "note": "per-city 3xIQR fence on log(price); removes data-entry errors such as 43,955 EUR"
+    }
+  ],
+  "listings_in_both_day_types": 18774,
+  "clean_rows": 51611,
+  "clean_cols": 29,
+  "rows_removed_total": 96
+}

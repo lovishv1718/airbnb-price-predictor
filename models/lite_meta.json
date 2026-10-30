@@ -1,0 +1,50 @@
+{
+ "features": [
+  "max_guests",
+  "num_bedrooms",
+  "is_superhost",
+  "is_multi_listing",
+  "is_business_listing",
+  "cleanliness_score",
+  "guest_satisfaction_score",
+  "distance_city_center",
+  "distance_metro",
+  "attraction_index_norm",
+  "restaurant_index_norm",
+  "proximity_index",
+  "latitude",
+  "longitude",
+  "Crime_Index",
+  "Safety_Index",
+  "Monthly_Average_Net_salary",
+  "Taxi_price_per_Km",
+  "Monthly_Basic_Utilities",
+  "is_weekend",
+  "guests_per_bedroom",
+  "log_dist_center",
+  "log_dist_metro",
+  "attr_x_rest",
+  "quality_score",
+  "city",
+  "room_type"
+ ],
+ "categories": {
+  "city": [
+   "Amsterdam",
+   "Athens",
+   "Barcelona",
+   "Berlin",
+   "Budapest",
+   "Lisbon",
+   "London",
+   "Paris",
+   "Rome",
+   "Vienna"
+  ],
+  "room_type": [
+   "Entire home/apt",
+   "Private room",
+   "Shared room"
+  ]
+ }
+}

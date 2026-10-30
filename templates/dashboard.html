@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Market Dashboard</h1>
+    <p>Airbnb pricing across 10 European capitals: what drives price, and where.</p>
+  </div>
+  <span class="pill"><span class="dot"></span>{{ "{:,}".format(eda.kpis.listings) }} listings analysed</span>
+</div>
+
+<div class="grid kpis">
+  <div class="card kpi accent"><div class="label">Median stay price</div><div class="value">€{{ '%.0f' % eda.kpis.median_price }}</div><div class="hint">2-night stay (source definition)</div></div>
+  <div class="card kpi"><div class="label">Average price</div><div class="value">€{{ '%.0f' % eda.kpis.mean_price }}</div><div class="hint">right-skewed distribution</div></div>
+  <div class="card kpi"><div class="label">Cities covered</div><div class="value">{{ eda.kpis.cities }}</div><div class="hint">across 10 countries</div></div>
+  <div class="card kpi"><div class="label">Superhosts</div><div class="value">{{ eda.kpis.superhost_pct }}%</div><div class="hint">of all listings</div></div>
+  <div class="card kpi"><div class="label">Guest satisfaction</div><div class="value">{{ eda.kpis.satisfaction }}</div><div class="hint">average score / 100</div></div>
+  <div class="card kpi"><div class="label">Weekend premium</div><div class="value">+{{ eda.kpis.weekend_premium_pct }}%</div><div class="hint">median weekend vs weekday</div></div>
+</div>
+
+<div class="grid g3" style="margin-bottom:18px">
+  <div class="card"><h3>Price map of Europe</h3><div class="sub">Bubble size = number of listings, colour = median price. Click a city to explore it.</div><div id="overview-map" class="map"></div></div>
+  <div class="card"><h3>Median price by city</h3><div class="sub">EUR, all room types</div><div id="c-city" class="chart" style="height:380px"></div></div>
+</div>
+
+<div class="grid g2" style="margin-bottom:18px">
+  <div class="card"><h3>Room type premium</h3><div class="sub">Median price per city and room type</div><div id="c-room" class="chart"></div></div>
+  <div class="card"><h3>The centre premium</h3><div class="sub">Median price vs distance to city centre (km)</div><div id="c-dist" class="chart"></div></div>
+</div>
+
+<div class="grid g2" style="margin-bottom:18px">
+  <div class="card"><h3>Price distribution</h3><div class="sub">All listings, clipped at €2,000</div><div id="c-hist" class="chart"></div></div>
+  <div class="card"><h3>Capacity drives price</h3><div class="sub">Median price by max guests and bedrooms</div><div id="c-cap" class="chart"></div></div>
+</div>
+
+<div class="card">
+  <h3>City scorecard</h3><div class="sub">Key market indicators per city</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>City</th><th>Listings</th><th>Median price</th><th>IQR (p25–p75)</th><th>Weekday → Weekend</th><th>Entire home</th><th>Superhost</th><th>Satisfaction</th><th>Safety idx</th></tr></thead>
+    <tbody>
+    {% set maxp = eda.cities[0].median_price %}
+    {% for c in eda.cities %}
+      <tr>
+        <td><b>{{ c.city }}</b><div class="small muted">{{ c.country }}</div></td>
+        <td>{{ "{:,}".format(c.listings) }}</td>
+        <td><div class="bar-cell"><div class="bar" style="width:{{ (c.median_price / maxp * 90)|round }}px"></div><b>€{{ '%.0f' % c.median_price }}</b></div></td>
+        <td>€{{ '%.0f' % c.p25 }} – €{{ '%.0f' % c.p75 }}</td>
+        <td>€{{ '%.0f' % c.weekday_median }} → €{{ '%.0f' % c.weekend_median }}</td>
+        <td>{{ c.entire_home_pct }}%</td><td>{{ c.superhost_pct }}%</td><td>{{ c.satisfaction }}</td><td>{{ c.safety_index }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const EDA = {{ eda|tojson }};
+const cities = EDA.cities;
+
+// overview map
+const m = baseMap("overview-map", [47.5, 8], 4);
+const q = quantiles(cities.map(c => c.median_price), [.2, .4, .6, .8]);
+cities.forEach(c => {
+  L.circleMarker([c.lat, c.lon], { radius: 8 + Math.sqrt(c.listings) / 6, color: "#fff", weight: 2,
+    fillColor: priceColor(c.median_price, q), fillOpacity: .9 })
+    .addTo(m).bindTooltip(`<b>${c.city}</b><br>Median ${eur(c.median_price)} · ${c.listings.toLocaleString()} listings`)
+    .on("click", () => location.href = `/explorer?city=${c.city}`);
+});
+
+plot("c-city", [{ type: "bar", orientation: "h", y: cities.map(c => c.city).reverse(), x: cities.map(c => c.median_price).reverse(),
+  marker: { color: cities.map((c, i) => i < 3 ? "#FF385C" : "#FDA4B4").reverse() },
+  text: cities.map(c => eur(c.median_price)).reverse(), textposition: "outside", hovertemplate: "%{y}: €%{x:.0f}<extra></extra>" }],
+  { margin: { l: 80, r: 50, t: 0, b: 30 } });
+
+const rt = EDA.room_type;
+plot("c-room", rt.columns.map((col, j) => ({ type: "bar", name: col, x: rt.index, y: rt.values.map(r => r[j]), marker: { color: COLORS[j] } })),
+  { barmode: "group" });
+
+const bd = EDA.by_distance;
+plot("c-dist", bd.cities.map((c, j) => ({ type: "scatter", mode: "lines+markers", name: c,
+  x: bd.bins, y: bd.values.map(r => r[j]), line: { color: COLORS[j], width: 2 }, marker: { size: 5 } })),
+  { legend: { orientation: "h", y: -0.25, font: { size: 10 } }, yaxis: { title: "€" } });
+
+const h = EDA.histogram;
+plot("c-hist", [{ type: "bar", x: h.edges.slice(0, -1), y: h.counts, marker: { color: "#FF385C" }, hovertemplate: "€%{x}: %{y} listings<extra></extra>" }],
+  { bargap: .05, xaxis: { title: "Price (EUR)" } });
+
+plot("c-cap", [
+  { type: "bar", name: "Max guests", x: Object.keys(EDA.guests).map(k => k + " guests"), y: Object.values(EDA.guests), marker: { color: "#2563EB" } },
+  { type: "bar", name: "Bedrooms", x: Object.keys(EDA.bedrooms).map(k => k + " bed"), y: Object.values(EDA.bedrooms), marker: { color: "#10B981" } },
+], { yaxis: { title: "Median €" } });
+</script>
+{% endblock %}

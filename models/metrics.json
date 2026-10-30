@@ -1,0 +1,309 @@
+{
+  "split": {
+    "train_rows": 41245,
+    "test_rows": 10366,
+    "strategy": "GroupShuffleSplit by listing_id (80/20)"
+  },
+  "results": {
+    "City median (baseline)": {
+      "r2_log": 0.1572,
+      "r2_eur": 0.0396,
+      "mae_eur": 191.39,
+      "rmse_eur": 402.17,
+      "mape_pct": 66.66,
+      "median_ape_pct": 42.19,
+      "within_20pct": 25.34,
+      "within_30pct": 37.25
+    },
+    "Ridge regression": {
+      "r2_log": 0.8108,
+      "r2_eur": 0.6147,
+      "mae_eur": 99.62,
+      "rmse_eur": 254.72,
+      "mape_pct": 25.63,
+      "median_ape_pct": 20.7,
+      "within_20pct": 48.53,
+      "within_30pct": 66.98
+    },
+    "Random Forest": {
+      "r2_log": 0.8469,
+      "r2_eur": 0.6346,
+      "mae_eur": 90.13,
+      "rmse_eur": 248.05,
+      "mape_pct": 22.31,
+      "median_ape_pct": 17.24,
+      "within_20pct": 55.99,
+      "within_30pct": 73.09
+    },
+    "LightGBM": {
+      "r2_log": 0.8542,
+      "r2_eur": 0.6513,
+      "mae_eur": 88.08,
+      "rmse_eur": 242.31,
+      "mape_pct": 22.0,
+      "median_ape_pct": 17.49,
+      "within_20pct": 55.92,
+      "within_30pct": 74.07
+    },
+    "XGBoost": {
+      "r2_log": 0.8553,
+      "r2_eur": 0.6503,
+      "mae_eur": 87.58,
+      "rmse_eur": 242.66,
+      "mape_pct": 21.82,
+      "median_ape_pct": 17.08,
+      "within_20pct": 56.56,
+      "within_30pct": 74.23
+    },
+    "CatBoost": {
+      "r2_log": 0.8558,
+      "r2_eur": 0.6526,
+      "mae_eur": 87.34,
+      "rmse_eur": 241.87,
+      "mape_pct": 21.81,
+      "median_ape_pct": 17.28,
+      "within_20pct": 56.42,
+      "within_30pct": 74.21
+    },
+    "Weighted ensemble": {
+      "r2_log": 0.8569,
+      "r2_eur": 0.653,
+      "mae_eur": 87.12,
+      "rmse_eur": 241.73,
+      "mape_pct": 21.72,
+      "median_ape_pct": 17.08,
+      "within_20pct": 56.49,
+      "within_30pct": 74.43
+    }
+  },
+  "best_model": "Weighted ensemble",
+  "random_split_reference": {
+    "r2_log": 0.8764,
+    "r2_eur": 0.6824,
+    "mae_eur": 82.29,
+    "rmse_eur": 227.18,
+    "mape_pct": 20.43,
+    "median_ape_pct": 15.87,
+    "within_20pct": 59.83,
+    "within_30pct": 77.39
+  },
+  "weights": {
+    "LightGBM": 0.167,
+    "XGBoost": 0.415,
+    "CatBoost": 0.4181
+  },
+  "best_iterations": {
+    "LightGBM": 1032,
+    "XGBoost": 656,
+    "CatBoost": 1542
+  },
+  "train_seconds": {
+    "LightGBM": 5.1,
+    "XGBoost": 3.7,
+    "CatBoost": 117.9
+  },
+  "per_city": {
+    "Amsterdam": {
+      "r2_log": 0.8643,
+      "r2_eur": 0.6404,
+      "mae_eur": 203.57,
+      "rmse_eur": 559.83,
+      "mape_pct": 22.11,
+      "median_ape_pct": 18.01,
+      "within_20pct": 54.5,
+      "within_30pct": 72.24
+    },
+    "Athens": {
+      "r2_log": 0.7773,
+      "r2_eur": 0.6892,
+      "mae_eur": 50.32,
+      "rmse_eur": 88.87,
+      "mape_pct": 21.61,
+      "median_ape_pct": 17.27,
+      "within_20pct": 55.51,
+      "within_30pct": 73.42
+    },
+    "Barcelona": {
+      "r2_log": 0.7749,
+      "r2_eur": 0.6828,
+      "mae_eur": 107.98,
+      "rmse_eur": 217.8,
+      "mape_pct": 23.22,
+      "median_ape_pct": 18.8,
+      "within_20pct": 53.01,
+      "within_30pct": 70.74
+    },
+    "Berlin": {
+      "r2_log": 0.8573,
+      "r2_eur": 0.606,
+      "mae_eur": 71.29,
+      "rmse_eur": 160.59,
+      "mape_pct": 23.05,
+      "median_ape_pct": 17.81,
+      "within_20pct": 53.98,
+      "within_30pct": 72.31
+    },
+    "Budapest": {
+      "r2_log": 0.7451,
+      "r2_eur": 0.5427,
+      "mae_eur": 71.48,
+      "rmse_eur": 127.37,
+      "mape_pct": 24.97,
+      "median_ape_pct": 19.32,
+      "within_20pct": 51.48,
+      "within_30pct": 68.68
+    },
+    "Lisbon": {
+      "r2_log": 0.8587,
+      "r2_eur": 0.821,
+      "mae_eur": 75.22,
+      "rmse_eur": 124.84,
+      "mape_pct": 18.79,
+      "median_ape_pct": 14.77,
+      "within_20pct": 62.55,
+      "within_30pct": 80.29
+    },
+    "London": {
+      "r2_log": 0.8837,
+      "r2_eur": 0.5246,
+      "mae_eur": 102.89,
+      "rmse_eur": 384.97,
+      "mape_pct": 23.01,
+      "median_ape_pct": 17.96,
+      "within_20pct": 54.49,
+      "within_30pct": 73.08
+    },
+    "Paris": {
+      "r2_log": 0.7214,
+      "r2_eur": 0.6903,
+      "mae_eur": 140.26,
+      "rmse_eur": 230.81,
+      "mape_pct": 23.87,
+      "median_ape_pct": 18.96,
+      "within_20pct": 51.84,
+      "within_30pct": 68.91
+    },
+    "Rome": {
+      "r2_log": 0.7962,
+      "r2_eur": 0.5672,
+      "mae_eur": 50.83,
+      "rmse_eur": 119.74,
+      "mape_pct": 19.16,
+      "median_ape_pct": 15.56,
+      "within_20pct": 60.93,
+      "within_30pct": 79.12
+    },
+    "Vienna": {
+      "r2_log": 0.8219,
+      "r2_eur": 0.7734,
+      "mae_eur": 63.76,
+      "rmse_eur": 113.21,
+      "mape_pct": 19.53,
+      "median_ape_pct": 15.42,
+      "within_20pct": 62.25,
+      "within_30pct": 80.42
+    }
+  },
+  "interval_log_resid": {
+    "Amsterdam": [
+      -0.3297,
+      0.4411
+    ],
+    "Athens": [
+      -0.3283,
+      0.3374
+    ],
+    "Barcelona": [
+      -0.3427,
+      0.3792
+    ],
+    "Berlin": [
+      -0.3396,
+      0.3785
+    ],
+    "Budapest": [
+      -0.3859,
+      0.3399
+    ],
+    "Lisbon": [
+      -0.2754,
+      0.3331
+    ],
+    "London": [
+      -0.3535,
+      0.3456
+    ],
+    "Paris": [
+      -0.3563,
+      0.3831
+    ],
+    "Rome": [
+      -0.2917,
+      0.3134
+    ],
+    "Vienna": [
+      -0.2746,
+      0.325
+    ]
+  },
+  "feature_importance": {
+    "proximity_index": 0.23159,
+    "attr_x_rest": 0.22404,
+    "attraction_index_norm": 0.07898,
+    "city": 0.0669,
+    "room_type": 0.06499,
+    "distance_metro": 0.04832,
+    "longitude": 0.04216,
+    "max_guests": 0.04135,
+    "num_bedrooms": 0.03986,
+    "distance_city_center": 0.03432,
+    "restaurant_index_norm": 0.01719,
+    "latitude": 0.01707,
+    "log_dist_metro": 0.0153,
+    "log_dist_center": 0.01175,
+    "Monthly_Average_Net_salary": 0.01147,
+    "quality_score": 0.00917,
+    "guest_satisfaction_score": 0.00861,
+    "Taxi_price_per_Km": 0.00758,
+    "Crime_Index": 0.00719,
+    "guests_per_bedroom": 0.00538,
+    "Safety_Index": 0.00429,
+    "is_business_listing": 0.00378,
+    "cleanliness_score": 0.00364,
+    "Monthly_Basic_Utilities": 0.00268,
+    "is_multi_listing": 0.00104,
+    "is_superhost": 0.00073,
+    "is_weekend": 0.00065
+  },
+  "n_features": 27,
+  "features": [
+    "max_guests",
+    "num_bedrooms",
+    "is_superhost",
+    "is_multi_listing",
+    "is_business_listing",
+    "cleanliness_score",
+    "guest_satisfaction_score",
+    "distance_city_center",
+    "distance_metro",
+    "attraction_index_norm",
+    "restaurant_index_norm",
+    "proximity_index",
+    "latitude",
+    "longitude",
+    "Crime_Index",
+    "Safety_Index",
+    "Monthly_Average_Net_salary",
+    "Taxi_price_per_Km",
+    "Monthly_Basic_Utilities",
+    "is_weekend",
+    "guests_per_bedroom",
+    "log_dist_center",
+    "log_dist_metro",
+    "attr_x_rest",
+    "quality_score",
+    "city",
+    "room_type"
+  ],
+  "total_seconds": 394.3
+}

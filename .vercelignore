@@ -1,0 +1,6 @@
+Cleaned_data.csv
+models/model.joblib
+reports/REPORT.docx
+.claude
+**/__pycache__
+**/catboost_info

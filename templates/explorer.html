@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Map Explorer{% endblock %}
+{% block head %}<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Map Explorer</h1><p>Every listing on the map, coloured by price. Filter, compare and spot the hotspots.</p></div>
+</div>
+<div class="explorer">
+  <div class="card">
+    <div class="field"><label>City</label>
+      <select id="city">{% for c in cities %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Layer</label>
+      <div class="seg" id="layer"><button class="on" data-v="points">Listings</button><button data-v="heat">Price heatmap</button><button data-v="density">Density</button></div></div>
+    <div class="field"><label>Room type</label>
+      <div class="toggles" id="rooms">
+        {% for r in room_types %}<label class="toggle">{{ r }}<input type="checkbox" value="{{ loop.index0 }}" checked></label>{% endfor %}
+      </div></div>
+    <div class="field"><label>Day type</label>
+      <div class="seg" id="day"><button class="on" data-v="all">All</button><button data-v="0">Weekday</button><button data-v="1">Weekend</button></div></div>
+    <div class="field"><label>Max price <span class="val" id="pmax-v"></span></label><input type="range" id="pmax" min="50" max="3000" step="25" value="3000"></div>
+    <div class="field"><label>Min guests <span class="val" id="g-v">2</span></label><input type="range" id="guests" min="2" max="6" value="2"></div>
+    <label class="toggle"><span>Superhosts only</span><input type="checkbox" id="superhost"></label>
+    <p class="small muted" style="margin-top:14px">Source coordinates are rounded to 0.01°; points are jittered slightly for display.</p>
+  </div>
+  <div class="card map-card">
+    <div id="map" class="map"></div>
+    <div class="stats-box" id="stats"></div>
+    <div class="legend"><b>Price (city quintiles)</b><div class="scale"></div><div class="ticks" id="ticks"></div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CENTERS = {{ centers|tojson }};
+const map = baseMap("map", [48.85, 2.35], 12);
+let data = null, layer = null, centerMarker = null, mode = "points", day = "all";
+const $ = id => document.getElementById(id);
+
+async function loadCity(city) {
+  const r = await fetch(`/api/listings/${encodeURIComponent(city)}`);
+  data = await r.json();
+  const prices = data.rows.map(r => r[2]);
+  data.q = quantiles(prices, [.2, .4, .6, .8]);
+  const p95 = quantiles(prices, [.98])[0];
+  $("pmax").max = Math.ceil(p95 / 50) * 50; $("pmax").value = $("pmax").max;
+  $("ticks").innerHTML = ["", ...data.q].map((v, i) => `<span>${i ? eur(v) : "low"}</span>`).join("") + "<span>high</span>";
+  map.setView(data.center, 12.5);
+  if (centerMarker) centerMarker.remove();
+  centerMarker = L.marker(data.center).addTo(map).bindTooltip("City centre (estimated)");
+  render();
+}
+
+function filtered() {
+  const rooms = [...document.querySelectorAll("#rooms input:checked")].map(i => +i.value);
+  const pmax = +$("pmax").value, g = +$("guests").value, sh = $("superhost").checked;
+  return data.rows.filter(r => rooms.includes(r[3]) && r[2] <= pmax && r[5] >= g && (!sh || r[8] === 1)
+    && (day === "all" || r[4] === +day));
+}
+
+function render() {
+  if (!data) return;
+  $("pmax-v").textContent = eur($("pmax").value); $("g-v").textContent = $("guests").value;
+  if (layer) map.removeLayer(layer);
+  const rows = filtered();
+  if (mode === "points") {
+    layer = L.layerGroup(rows.map(r => L.circleMarker([r[0], r[1]], { radius: 4, stroke: false, fillOpacity: .75, fillColor: priceColor(r[2], data.q) })
+      .bindPopup(`<div class="pop-price">${eur(r[2])}</div>${ROOM_TYPES[r[3]]} · ${r[5]} guests · ${r[6]} bedroom(s)<br>
+        ${r[4] ? "Weekend" : "Weekday"} · satisfaction ${r[7]}${r[8] ? " · ★ Superhost" : ""}<br><span class="muted">${r[9]} km from centre</span>`)));
+  } else {
+    const maxP = data.q[3] * 1.5;
+    // intensities accumulate where points overlap, so keep each one small
+    const pts = rows.map(r => [r[0], r[1], mode === "heat" ? Math.min(r[2] / maxP, 1) * .12 : .05]);
+    layer = L.heatLayer(pts, { radius: mode === "heat" ? 20 : 16, blur: 18, maxZoom: 14, max: 1,
+      gradient: { .2: "#2563EB", .4: "#10B981", .6: "#FACC15", .8: "#F97316", 1: "#E11D48" } });
+  }
+  layer.addTo(map);
+  const ps = rows.map(r => r[2]).sort((a, b) => a - b);
+  const med = ps.length ? ps[Math.floor(ps.length / 2)] : 0;
+  $("stats").innerHTML = `<span class="muted">${data.city} · ${rows.length.toLocaleString()} listings</span><b>${eur(med)}</b><span class="muted">median price</span>`;
+}
+
+document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target));
+  if (seg.id === "layer") mode = e.target.dataset.v; else day = e.target.dataset.v;
+  render();
+}));
+["pmax", "guests", "superhost"].forEach(id => $(id).addEventListener("input", render));
+document.querySelectorAll("#rooms input").forEach(i => i.addEventListener("change", render));
+$("city").addEventListener("change", e => loadCity(e.target.value));
+
+const initial = new URLSearchParams(location.search).get("city") || "Paris";
+$("city").value = initial; loadCity(initial);
+</script>
+{% endblock %}
