@@ -1,6 +1,6 @@
 # Airbnb Price Prediction Across 10 European Cities
 
-**Project report:** data cleaning, exploratory analysis, machine-learning modelling and deployment as a web app (PriceScope).
+**Project report:** data cleaning, exploratory analysis, machine-learning modelling and deployment as a web app (Altitude).
 
 ---
 
@@ -168,7 +168,7 @@ The two most important features are `proximity_index` (23% of total gain) and `a
 
 ---
 
-## 7. The web application (PriceScope)
+## 7. The web application (Altitude)
 
 | Page | What it does |
 |---|---|

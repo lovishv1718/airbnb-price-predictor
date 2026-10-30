@@ -1,4 +1,4 @@
-"""PriceScope - Airbnb price intelligence for 10 European cities (Flask app)."""
+"""Altitude - Airbnb price intelligence for 10 European cities (Flask app)."""
 import json
 import sys
 from pathlib import Path

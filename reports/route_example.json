@@ -15,7 +15,7 @@
   "directed_edges": 36,
   "distance": 5.649,
   "max_passes": 8,
-  "ms": 0.023,
+  "ms": 0.028,
   "negative_cycle": false,
   "passes": 2,
   "path": [
@@ -39,7 +39,7 @@
   ],
   "distance": 5.649,
   "heap_pushes": 10,
-  "ms": 0.014,
+  "ms": 0.02,
   "path": [
    0,
    7,
@@ -295,7 +295,7 @@
  "target": 5,
  "tsp_exact": {
   "km": 17.524,
-  "ms": 1.766,
+  "ms": 1.681,
   "states": 3584,
   "subsets": 256,
   "tour": [
@@ -338,7 +338,7 @@
    0
   ],
   "km": 17.524,
-  "ms": 0.035,
+  "ms": 0.062,
   "tour": [
    0,
    1,

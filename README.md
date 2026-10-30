@@ -1,4 +1,4 @@
-# PriceScope: Airbnb Price Prediction (10 European cities)
+# Altitude: Airbnb Price Prediction (10 European cities)
 
 End-to-end ML project: data cleaning → EDA → model training (LightGBM, XGBoost and CatBoost ensemble) → Flask web app with interactive maps.
 
@@ -24,3 +24,15 @@ trees (identical predictions, R² 0.854), which keeps the serverless bundle smal
 - **Route Planner**: pick the Airbnbs to visit; shortest paths by Dijkstra and Bellman-Ford, and the best visiting order by the Travelling Salesman algorithms (Held-Karp exact, nearest neighbour + 2-opt). All implemented from scratch in `src/algorithms.py`, tested with `python -m unittest discover tests`
 - **Model Performance**: leaderboard, feature importance, per-city accuracy
 - **Project Report**: full write-up (also in `reports/REPORT.md` and `reports/REPORT.docx`)
+
+## Reports
+- `reports/Altitude_Python_Report.pdf`: the project from the Python side (pandas, matplotlib, scikit-learn, OOP, Flask, testing)
+- `reports/Altitude_DAA_Report.pdf`: Design and Analysis of Algorithms (Dijkstra, Bellman-Ford, Held-Karp, 2-opt: correctness, complexity, traces, benchmarks)
+
+To rebuild them, start the app, then from `src/`:
+```bash
+python capture_screenshots.py http://127.0.0.1:5000
+python report_figures.py
+python report_python.py
+python report_daa.py
+```
