@@ -84,7 +84,8 @@ def api_predict():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "model": predictor.serving, "r2_log": METRICS["results"][METRICS["best_model"]]["r2_log"]})
+    served = "LightGBM" if predictor.lite else METRICS["best_model"]
+    return jsonify({"status": "ok", "model": predictor.serving, "r2_log": METRICS["results"][served]["r2_log"]})
 
 
 if __name__ == "__main__":
