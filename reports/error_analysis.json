@@ -1,0 +1,171 @@
+{
+ "by_band": [
+  {
+   "band": "Q1 cheapest",
+   "ape": 19.9,
+   "bias": 112.85,
+   "actual": 103.17
+  },
+  {
+   "band": "Q2",
+   "ape": 15.67,
+   "bias": 184.24,
+   "actual": 176.91
+  },
+  {
+   "band": "Q3",
+   "ape": 16.76,
+   "bias": 264.9,
+   "actual": 257.96
+  },
+  {
+   "band": "Q4",
+   "ape": 15.64,
+   "bias": 379.86,
+   "actual": 383.34
+  },
+  {
+   "band": "Q5 priciest",
+   "ape": 20.04,
+   "bias": 638.49,
+   "actual": 705.14
+  }
+ ],
+ "by_room": {
+  "Entire home/apt": 16.78,
+  "Private room": 18.74,
+  "Shared room": 19.72
+ },
+ "by_day": {
+  "weekday": 17.09,
+  "weekend": 17.83
+ },
+ "worst": [
+  {
+   "city": "Paris",
+   "room_type": "Entire home/apt",
+   "max_guests": 5,
+   "num_bedrooms": 1,
+   "distance_city_center": 3.45,
+   "price_total": 254.43,
+   "pred": 733.67,
+   "ape": 188.36
+  },
+  {
+   "city": "London",
+   "room_type": "Shared room",
+   "max_guests": 2,
+   "num_bedrooms": 1,
+   "distance_city_center": 5.04,
+   "price_total": 36.64,
+   "pred": 102.5,
+   "ape": 179.74
+  },
+  {
+   "city": "London",
+   "room_type": "Private room",
+   "max_guests": 2,
+   "num_bedrooms": 1,
+   "distance_city_center": 3.79,
+   "price_total": 109.4,
+   "pred": 300.8,
+   "ape": 174.95
+  },
+  {
+   "city": "Barcelona",
+   "room_type": "Private room",
+   "max_guests": 2,
+   "num_bedrooms": 1,
+   "distance_city_center": 1.76,
+   "price_total": 96.53,
+   "pred": 256.81,
+   "ape": 166.04
+  },
+  {
+   "city": "Budapest",
+   "room_type": "Entire home/apt",
+   "max_guests": 6,
+   "num_bedrooms": 1,
+   "distance_city_center": 4.12,
+   "price_total": 33.52,
+   "pred": 80.36,
+   "ape": 139.73
+  },
+  {
+   "city": "London",
+   "room_type": "Private room",
+   "max_guests": 3,
+   "num_bedrooms": 1,
+   "distance_city_center": 6.96,
+   "price_total": 34.7,
+   "pred": 82.41,
+   "ape": 137.48
+  },
+  {
+   "city": "London",
+   "room_type": "Private room",
+   "max_guests": 2,
+   "num_bedrooms": 1,
+   "distance_city_center": 8.04,
+   "price_total": 71.52,
+   "pred": 169.17,
+   "ape": 136.54
+  },
+  {
+   "city": "Budapest",
+   "room_type": "Entire home/apt",
+   "max_guests": 6,
+   "num_bedrooms": 2,
+   "distance_city_center": 0.81,
+   "price_total": 242.22,
+   "pred": 568.13,
+   "ape": 134.55
+  },
+  {
+   "city": "Paris",
+   "room_type": "Private room",
+   "max_guests": 2,
+   "num_bedrooms": 1,
+   "distance_city_center": 2.69,
+   "price_total": 224.83,
+   "pred": 519.8,
+   "ape": 131.2
+  },
+  {
+   "city": "London",
+   "room_type": "Entire home/apt",
+   "max_guests": 4,
+   "num_bedrooms": 2,
+   "distance_city_center": 4.02,
+   "price_total": 197.29,
+   "pred": 455.13,
+   "ape": 130.69
+  },
+  {
+   "city": "Budapest",
+   "room_type": "Entire home/apt",
+   "max_guests": 6,
+   "num_bedrooms": 3,
+   "distance_city_center": 0.2,
+   "price_total": 439.42,
+   "pred": 1006.33,
+   "ape": 129.01
+  },
+  {
+   "city": "Barcelona",
+   "room_type": "Private room",
+   "max_guests": 5,
+   "num_bedrooms": 2,
+   "distance_city_center": 0.85,
+   "price_total": 590.1,
+   "pred": 1343.44,
+   "ape": 127.66
+  }
+ ],
+ "within": {
+  "10": 30.9,
+  "20": 56.1,
+  "30": 74.1,
+  "50": 91.9
+ }
+}

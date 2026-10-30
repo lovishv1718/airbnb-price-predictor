@@ -45,7 +45,7 @@ The file was already mostly clean (no missing values), but validation still turn
 | Domain range checks | 0 | scores in range, distances ≥ 0, price > 0 |
 | Extreme price outliers | **33** | per-city 3×IQR fence on log price; removes entry errors such as a €43,955 listing |
 
-**A finding that matters for evaluation:** about **10,800 listings appear twice**, once as a weekday row and once as a weekend row, with almost the same price. A random train/test split would put one copy in training and the other in testing, so the model would be scored partly on listings it had already seen. We give every row a `listing_id` and **split by listing** (see section 5).
+**A finding that matters for evaluation:** **18,774 listings appear twice**, once as a weekday row and once as a weekend row, with almost the same price. A random train/test split would put one copy in training and the other in testing, so the model would be scored partly on listings it had already seen. We give every row a `listing_id` and **split by listing** (see section 5).
 
 `proximity_index` was checked for target leakage. It is a deterministic function of the four location columns (a gradient-boosting model rebuilds it with R² = 0.9994, and adding price on top changes nothing), so it is a valid feature.
 
